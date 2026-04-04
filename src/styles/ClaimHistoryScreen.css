@@ -1,0 +1,68 @@
+/* Styles for the Claim History Modal */
+.claim-history-modal .ant-modal-confirm-content {
+  margin-top: 0 !important;
+  margin-left: 0 !important;
+  max-width: 100% !important;
+}
+
+.claim-history-modal .ant-modal-confirm-btns {
+  display: none;
+}
+
+.claim-history-modal .ant-modal-body {
+  padding: 0;
+}
+
+.modal-header {
+  background-color: #FF6600;
+  padding: 16px;
+  margin-top: -24px;
+  margin-left: -24px;
+  margin-right: -24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.claim-detail-modal {
+  padding-bottom: 16px;
+}
+
+/* Filter chips */
+.filter-chip {
+  cursor: pointer;
+  transition: all 0.3s;
+  user-select: none;
+}
+
+.filter-chip:hover {
+  opacity: 0.8;
+}
+
+.filter-chip.selected {
+  background-color: #FFF5E6 !important;
+  color: #FF6600 !important;
+  border-color: #FF6600 !important;
+}
+
+/* Claim cards */
+.claim-card {
+  transition: all 0.3s;
+}
+
+.claim-card:hover {
+  border-color: #FF6600 !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05) !important;
+}
+
+.claim-history-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.claims-list {
+  margin-bottom: 24px;
+}
+
+
+

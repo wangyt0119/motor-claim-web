@@ -1,0 +1,76 @@
+body {
+  margin: 0;
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #F8F9FA;
+}
+
+/* Override Ant Design styles */
+.ant-btn-primary {
+  background-color: #FF6600;
+  border-color: #FF6600;
+}
+
+.ant-btn-primary:hover {
+  background-color: #E65C00;
+  border-color: #E65C00;
+}
+
+.ant-btn-default {
+  color: #6C757D;
+  border-color: #E9ECEF;
+}
+
+.ant-layout-header {
+  background-color: #FFFFFF;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.05);
+}
+
+.ant-card {
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.ant-table {
+  background-color: #FFFFFF;
+  border-radius: 8px;
+}
+
+.ant-table-thead > tr > th {
+  background-color: #F8F9FA;
+  color: #495057;
+}
+
+.ant-pagination-item-active {
+  border-color: #FF6600;
+}
+
+.ant-pagination-item-active a {
+  color: #FF6600;
+}
+
+.ant-select-focused .ant-select-selector,
+.ant-select-selector:hover,
+.ant-select-open .ant-select-selector {
+  border-color: #FF6600 !important;
+}
+
+.ant-checkbox-checked .ant-checkbox-inner {
+  background-color: #FF6600;
+  border-color: #FF6600;
+}
+
+.ant-radio-checked .ant-radio-inner {
+  border-color: #FF6600;
+}
+
+.ant-radio-inner::after {
+  background-color: #FF6600;
+}
+
+.ant-switch-checked {
+  background-color: #FF6600;
+}

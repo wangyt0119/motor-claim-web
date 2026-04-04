@@ -1,0 +1,166 @@
+.app-selector-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  background-color: #f8f9fa;
+  padding: 32px;
+}
+
+.app-selector-content {
+  max-width: 1000px;
+  width: 100%;
+}
+
+.header-card {
+  text-align: center;
+  padding: 24px;
+  margin-bottom: 48px;
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+}
+
+.app-selector-logo {
+  height: 60px;
+  margin-bottom: 24px;
+}
+
+.welcome-title {
+  margin-bottom: 8px !important;
+  font-size: 32px !important;
+  color: #1a1a1a;
+}
+
+.welcome-subtitle {
+  display: block;
+  font-size: 18px;
+  color: #6c757d;
+  font-weight: 500;
+  margin-bottom: 16px;
+}
+
+.orange-divider {
+  width: 60px;
+  height: 4px;
+  background-color: #FF6600;
+  border-radius: 2px;
+  margin: 16px auto 0;
+}
+
+.selection-cards-row {
+  margin-bottom: 32px;
+}
+
+.selection-card {
+  height: 100%;
+  min-height: 450px;
+  display: flex;
+  flex-direction: column;
+  padding: 28px;
+  border-radius: 16px;
+  border: 1px solid #e9ecef;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.icon-container {
+  width: 56px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 16px;
+  margin-right: 16px;
+}
+
+.icon-container .anticon {
+  font-size: 28px;
+}
+
+.header-text {
+  flex: 1;
+}
+
+.card-title {
+  margin-bottom: 4px !important;
+  font-size: 20px !important;
+  color: #1a1a1a;
+}
+
+.card-subtitle {
+  font-size: 14px;
+  color: #6c757d;
+}
+
+.card-description {
+  font-size: 14px;
+  color: #6c757d;
+  line-height: 1.5;
+  margin-bottom: 28px;
+}
+
+.features-section {
+  margin-bottom: 20px;
+  flex: 1;
+}
+
+.feature-list {
+  margin-top: 16px;
+  width: 100%;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+}
+
+.feature-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 12px;
+  flex-shrink: 0;
+}
+
+.feature-text {
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.access-button {
+  width: 100%;
+  height: 52px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.access-button .anticon {
+  margin-left: 8px;
+  font-size: 18px;
+}
+
+.footer-text {
+  display: block;
+  text-align: center;
+  font-size: 14px;
+  color: #6c757d;
+  margin-top: 32px;
+}
+
+@media (max-width: 992px) {
+  .selection-card {
+    margin-bottom: 24px;
+  }
+}
+
+
+
