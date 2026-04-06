@@ -2,17 +2,11 @@ import React from 'react';
 import { ConfigProvider } from 'antd';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppSelector from './components/AppSelector';
-import MainScreen from './components/MainScreen';
-import ClaimOfficerDashboard from './components/ClaimOfficerDashboard';
+import CustomerPortal from './components/CustomerPortal';
+import OfficerPortal from './components/OfficerPortal';
 import './App.css';
 
 function App() {
-  // Global sign out function
-  const handleSignOut = () => {
-    // Force navigation to root
-    window.location.href = '/';
-  };
-
   return (
     <ConfigProvider
       theme={{
@@ -24,8 +18,8 @@ function App() {
     >
       <Routes>
         <Route path="/" element={<AppSelector />} />
-        <Route path="/customer/*" element={<MainScreen onSignOut={handleSignOut} />} />
-        <Route path="/officer/*" element={<ClaimOfficerDashboard onSignOut={handleSignOut} />} />
+        <Route path="/customer/*" element={<CustomerPortal />} />
+        <Route path="/officer/*" element={<OfficerPortal />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ConfigProvider>

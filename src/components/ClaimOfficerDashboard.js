@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Typography, Divider, Badge, Button, Row, Col, Card, Statistic } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Layout, Avatar, Typography, Badge, Button, Row, Col, Card, Statistic } from 'antd';
 import { 
   DashboardOutlined, 
   FlagOutlined, 
@@ -8,6 +8,7 @@ import {
   CheckCircleOutlined,
   SecurityScanOutlined,
   AreaChartOutlined,
+  UnorderedListOutlined,
   RadarChartOutlined,
   NotificationOutlined,
   DollarOutlined,
@@ -15,7 +16,7 @@ import {
   UserOutlined,
   BellOutlined
 } from '@ant-design/icons';
-import { Routes, Route, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import '../styles/OfficerDashboard.css';
 
 // Import all required components
@@ -27,13 +28,20 @@ import ReportsScreen from './ReportsScreen';
 import TrackValidationProcess from './TrackValidationProcess';
 import NotificationAuditScreen from './NotificationAuditScreen';
 import PaymentMonitoringDashboard from './PaymentMonitoringDashboard';
+import AllClaimsOfficerScreen from './AllClaimsOfficerScreen';
 
 const { Sider, Content, Header } = Layout;
 const { Title, Text } = Typography;
 
-function ClaimOfficerDashboard() {
+function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (window.location.pathname === '/officer' || window.location.pathname === '/officer/') {
+      navigate('/officer/dashboard', { replace: true });
+    }
+  }, [navigate]);
   
   // Sample pending claims data
   const pendingClaims = [
@@ -95,7 +103,7 @@ function ClaimOfficerDashboard() {
     <div style={{ padding: 24 }}>
       <Title level={2}>Officer Dashboard</Title>
       <Text type="secondary" style={{ fontSize: 16 }}>
-        Welcome back, Sarah Johnson
+        Welcome back, {currentOfficer?.fullName || currentOfficer?.FullName || 'Sarah Johnson'}
       </Text>
       
       <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
@@ -158,12 +166,14 @@ function ClaimOfficerDashboard() {
       case 4:
         return <SuspiciousClaimsReview />;
       case 5:
-        return <ReportsScreen />;
+        return <AllClaimsOfficerScreen />;
       case 6:
-        return <TrackValidationProcess />;
+        return <ReportsScreen />;
       case 7:
-        return <NotificationAuditScreen />;
+        return <TrackValidationProcess />;
       case 8:
+        return <NotificationAuditScreen />;
+      case 9:
         return <PaymentMonitoringDashboard />;
       default:
         return (
@@ -207,7 +217,7 @@ function ClaimOfficerDashboard() {
           <Avatar size={40} icon={<UserOutlined />} style={{ backgroundColor: '#FF6600' }} />
           <div style={{ marginLeft: 12 }}>
             <Text strong style={{ display: 'block' }}>
-              Sarah Johnson
+              {currentOfficer?.fullName || currentOfficer?.FullName || 'Sarah Johnson'}
             </Text>
             <Text type="secondary" style={{ fontSize: 12 }}>
               Claims Officer
@@ -285,35 +295,43 @@ function ClaimOfficerDashboard() {
           </div>
           
           {buildOfficerNavItem({
+            icon: <UnorderedListOutlined />,
+            title: 'All Claims',
+            subtitle: 'View all submitted claims',
+            index: 5,
+            isSelected: selectedIndex === 5
+          })}
+
+          {buildOfficerNavItem({
             icon: <AreaChartOutlined />,
             title: 'Reports',
             subtitle: 'Analytics & statistics',
-            index: 5,
-            isSelected: selectedIndex === 5
+            index: 6,
+            isSelected: selectedIndex === 6
           })}
           
           {buildOfficerNavItem({
             icon: <RadarChartOutlined />,
             title: 'Track Validation',
             subtitle: 'Monitor validation process',
-            index: 6,
-            isSelected: selectedIndex === 6
+            index: 7,
+            isSelected: selectedIndex === 7
           })}
           
           {buildOfficerNavItem({
             icon: <NotificationOutlined />,
             title: 'Notification Audit',
             subtitle: 'System alerts & logs',
-            index: 7,
-            isSelected: selectedIndex === 7
+            index: 8,
+            isSelected: selectedIndex === 8
           })}
           
           {buildOfficerNavItem({
             icon: <DollarOutlined />,
             title: 'Payment Monitoring',
             subtitle: 'Track claim payments',
-            index: 8,
-            isSelected: selectedIndex === 8
+            index: 9,
+            isSelected: selectedIndex === 9
           })}
         </div>
         
@@ -324,7 +342,13 @@ function ClaimOfficerDashboard() {
           <Button 
             icon={<LogoutOutlined />} 
             block
-            onClick={() => navigate('/')}
+            onClick={() => {
+              if (onSignOut) {
+                onSignOut();
+              } else {
+                navigate('/');
+              }
+            }}
           >
             Sign Out
           </Button>

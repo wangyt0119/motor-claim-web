@@ -1,3 +1,22 @@
+# Motor Claim Web
+
+## Auth Backend Setup
+
+Create a `.env` file in the project root and point it to your backend:
+
+```env
+REACT_APP_API_BASE_URL=https://localhost:44352/api
+REACT_APP_LOGIN_PATH=/Auth/login
+REACT_APP_REGISTER_PATH=/auth/register
+```
+
+The customer portal now opens at `/customer/auth` and:
+
+- `Login` sends `POST {email, password}`
+- `Register` sends the fields required by your backend user registration model
+
+If your backend uses different endpoint paths, update the `.env` values above.
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).

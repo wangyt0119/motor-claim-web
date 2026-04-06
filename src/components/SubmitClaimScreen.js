@@ -1,16 +1,12 @@
-import React, { useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
-  Form, Input, Button, Select, DatePicker, TimePicker, 
-  Upload, message, Steps, Row, Col, Card, Typography, 
-  Space, Divider, Alert, Checkbox
+  Form, Input, Button, DatePicker,
+  Upload, message, Row, Col, Card, Typography, Modal,
+  Divider, Alert, Checkbox, Spin, Empty
 } from 'antd';
 import { 
   CarOutlined, 
   CalendarOutlined, 
-  ClockCircleOutlined, 
-  EnvironmentOutlined, 
-  FileImageOutlined, 
-  FilePdfOutlined, 
   UploadOutlined, 
   ArrowLeftOutlined, 
   ArrowRightOutlined, 
@@ -18,24 +14,29 @@ import {
   InboxOutlined,
   CheckCircleOutlined,
   FileTextOutlined,
-  FolderOutlined,
-  CloseOutlined,
-  CameraOutlined,
-  IdcardOutlined
+  FolderOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
-import ClaimData from '../models/ClaimData';
+import { getMyCoverages } from '../services/coverageService';
+import { createClaim } from '../services/claimService';
+import { uploadFileToCloudinary } from '../services/cloudinaryService';
 
-const { Option } = Select;
 const { Title, Text } = Typography;
-const { Step } = Steps;
-const { Dragger } = Upload;
 
 function SubmitClaimScreen({ onSubmit }) {
   const [form] = Form.useForm();
   const [currentStep, setCurrentStep] = useState(0);
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [documentFiles, setDocumentFiles] = useState({});
+  const [selectedCoverage, setSelectedCoverage] = useState(null);
+  const [incidentDateString, setIncidentDateString] = useState('');
+  const [incidentDescription, setIncidentDescription] = useState('');
+  const [coverageOptions, setCoverageOptions] = useState([]);
+  const [coverageLoading, setCoverageLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState('');
+  const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [submittedClaimData, setSubmittedClaimData] = useState(null);
 
   const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -90,6 +91,27 @@ function SubmitClaimScreen({ onSubmit }) {
     ]
   };
 
+  useEffect(() => {
+    const loadCoverages = async () => {
+      setCoverageLoading(true);
+
+      try {
+        const coverages = await getMyCoverages();
+        setCoverageOptions(coverages);
+      } catch (error) {
+        message.error(
+          error?.response?.data?.message ||
+            error?.response?.data?.title ||
+            'Unable to load your coverages from the backend.'
+        );
+      } finally {
+        setCoverageLoading(false);
+      }
+    };
+
+    loadCoverages();
+  }, []);
+
   const getRequiredDocuments = (claimType) => {
     const sections = vehicleClaimDocumentSections[claimType] || [];
     return sections.flatMap((section) => section.documents);
@@ -111,6 +133,25 @@ function SubmitClaimScreen({ onSubmit }) {
 
     setDocumentFiles(nextFiles);
   };
+
+  const getDocumentPayload = async () => {
+    const uploadedEntries = Object.entries(documentFiles);
+    const payload = {};
+
+    for (const [documentKey, fileList] of uploadedEntries) {
+      const file = fileList?.[0];
+
+      if (!file) {
+        payload[documentKey] = null;
+        continue;
+      }
+
+      const rawFile = file.originFileObj ?? file;
+      payload[documentKey] = await uploadFileToCloudinary(rawFile);
+    }
+
+    return payload;
+  };
   
   // Validate current step before proceeding
   const validateCurrentStep = async () => {
@@ -118,12 +159,21 @@ function SubmitClaimScreen({ onSubmit }) {
       switch (currentStep) {
         case 0:
           // Validate incident details
-          await form.validateFields([
-            'incidentDate'
-          ]);
+          await form.validateFields(['incidentDate']);
+          if (!incidentDateString) {
+            message.error('Please select the incident date');
+            return false;
+          }
           return true;
         case 1:
-          // Documents are optional
+          if (!coverageOptions.length) {
+            message.error('No coverage is available for claim submission.');
+            return false;
+          }
+          if (!selectedCoverage) {
+            message.error('Please select one coverage');
+            return false;
+          }
           return true;
         case 2: {
           const vehicleClaimType = form.getFieldValue('vehicleClaimType');
@@ -134,7 +184,10 @@ function SubmitClaimScreen({ onSubmit }) {
           return true;
         }
         case 3: {
-          await form.validateFields(['incidentDescription']);
+          if (!incidentDescription.trim()) {
+            message.error('Please describe the incident in detail');
+            return false;
+          }
           const vehicleClaimType = form.getFieldValue('vehicleClaimType');
           const requiredDocs = getRequiredDocuments(vehicleClaimType);
           const missingDoc = requiredDocs.find((doc) => !(documentFiles[doc.key] && documentFiles[doc.key].length > 0));
@@ -180,40 +233,81 @@ function SubmitClaimScreen({ onSubmit }) {
   // Handle form submission
   const handleSubmit = async () => {
     try {
-      // Validate all fields
-      const values = await form.validateFields();
-      const selectedDocs = getRequiredDocuments(values.vehicleClaimType);
-      
-      // Create new claim with all form data
-      const newClaim = {
-        id: `CLM${Date.now().toString().substring(7)}`,
-        date: new Date(),
-        type: values.vehicleClaimType || values.accidentType,
-        status: 'Submitted',
-        location: values.location,
-        vehicleModel: `${values.vehicleMake} ${values.vehicleModel}`,
-        vehicleRegistration: values.vehicleRegistration,
-        claimAmount: 0.0, // Will be determined later
-        policyNumber: '', // Could be added to the form
-        notes: ['New claim submitted by customer'],
-        // Add file information
-        documents: selectedDocs.flatMap((doc) =>
-          (documentFiles[doc.key] || []).map((file) => ({
-            type: doc.label,
-            name: file.name,
-            size: file.size,
-            uploadDate: new Date()
-          }))
-        )
-      };
-      
-      // Call the onSubmit callback with the new claim
-      if (onSubmit) {
-        onSubmit(newClaim);
+      setSubmitError('');
+
+      if (!termsAgreed) {
+        message.warning('Please tick the confirmation checkbox before submitting your claim.');
+        return;
       }
-      
+
+      const isValid = await validateCurrentStep();
+      if (!isValid) {
+        return;
+      }
+
+      const values = await form.validateFields();
+      setSubmitting(true);
+
+      const documentPayload = await getDocumentPayload();
+      const motorClaimType = values.vehicleClaimType === 'Vehicle Damages' ? 1 : 2;
+      const incidentDateIso = incidentDateString ? `${incidentDateString}T00:00:00` : null;
+
+      if (!incidentDateIso) {
+        throw new Error('Incident date could not be converted to the backend format.');
+      }
+
+      const claimPayload = {
+        coverageId: selectedCoverage,
+        incidentDate: incidentDateIso,
+        allClaimType: 1,
+        motorClaimType,
+        incidentDescription: incidentDescription.trim(),
+        policeReportDocument: documentPayload.policeReport ?? null,
+        vehicleOwnershipCertificateDocument: documentPayload.registrationCard ?? null,
+        identityDocumentFront: documentPayload.idFront ?? null,
+        identityDocumentBack: documentPayload.idBack ?? null,
+        drivingLicenseFront: documentPayload.licenseFront ?? null,
+        drivingLicenseBack: documentPayload.licenseBack ?? null,
+        vehicleDamageFrontLeftDocument: documentPayload.damageFrontLeft ?? null,
+        vehicleDamageFrontRightDocument: documentPayload.damageFrontRight ?? null,
+        vehicleDamageRearLeftDocument: documentPayload.damageRearLeft ?? null,
+        vehicleDamageRearRightDocument: documentPayload.damageRearRight ?? null,
+      };
+
+      console.log('Create claim payload', claimPayload);
+
+      const createdClaim = await createClaim(claimPayload);
+      console.log('Create claim response', createdClaim);
+
+      setSubmittedClaimData({
+        ...createdClaim,
+        type: values.vehicleClaimType,
+        vehicleRegistration:
+          coverageOptions.find((coverage) => coverage.coverageId === selectedCoverage)?.vehicleNo ||
+          createdClaim.vehicleRegistration,
+      });
+      setSuccessModalOpen(true);
+
+      form.resetFields();
+      setCurrentStep(0);
+      setTermsAgreed(false);
+      setDocumentFiles({});
+      setSelectedCoverage(null);
+      setIncidentDateString('');
+      setIncidentDescription('');
     } catch (error) {
-      console.error("Form submission failed:", error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.response?.data?.title ||
+        (typeof error?.response?.data === 'string' ? error.response.data : null) ||
+        error?.message ||
+        'Form submission failed.';
+
+      console.error('Create claim failed', error);
+      setSubmitError(errorMessage);
+      message.error(errorMessage);
+    } finally {
+      setSubmitting(false);
     }
   };
   
@@ -350,9 +444,10 @@ function SubmitClaimScreen({ onSubmit }) {
               >
                 <DatePicker 
                   style={{ width: '100%' }}
-                  format="DD/MM/YYYY"
+                  format="YYYY-MM-DD"
                   disabledDate={current => current && current > moment().endOf('day')}
                   suffixIcon={<CalendarOutlined style={{ color: '#FF6600' }} />}
+                  onChange={(_, dateString) => setIncidentDateString(dateString)}
                 />
               </Form.Item>
             </Col>
@@ -366,6 +461,19 @@ function SubmitClaimScreen({ onSubmit }) {
   
   // Build select coverage step
   const buildSelectCoverageStep = () => {
+    const selectCoverage = (coverageId) => {
+      setSelectedCoverage(coverageId);
+      form.setFieldsValue({ selectedCoverage: coverageId });
+    };
+
+    const coverageCardStyle = (isSelected) => ({
+      marginTop: 12,
+      borderRadius: 16,
+      border: isSelected ? '2px solid #FF6600' : '1px solid #e8e8e8',
+      boxShadow: isSelected ? '0 4px 12px rgba(255,102,0,0.12)' : '0 2px 8px rgba(0,0,0,0.05)',
+      cursor: 'pointer'
+    });
+
     return (
       <div>
         <Card 
@@ -382,44 +490,62 @@ function SubmitClaimScreen({ onSubmit }) {
         You can select one coverage
       </Text>
 
-      {/* Coverage Card */}
-      <Card
-        style={{
-          marginTop: 20,
-          borderRadius: 16,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
-        }}
-      >
-        {/* Name */}
-        <Text type="secondary">Insured Person Name</Text>
-        <Title level={4} style={{ marginTop: 0 }}>
-          WANG YU TING
-        </Title>
+      <div style={{ marginTop: 8 }}>
+        {coverageLoading ? (
+          <div style={{ textAlign: 'center', padding: '36px 0' }}>
+            <Spin />
+          </div>
+        ) : coverageOptions.length === 0 ? (
+          <Empty description="No coverages found for this account" />
+        ) : (
+          <Row gutter={[16, 16]}>
+            {coverageOptions.map((coverage, index) => {
+              const isSelected = selectedCoverage === coverage.coverageId;
+              return (
+                <Col xs={24} lg={12} key={coverage.coverageId}>
+                  <Card
+                    style={coverageCardStyle(isSelected)}
+                    styles={{ body: { padding: 16 } }}
+                    onClick={() => selectCoverage(coverage.coverageId)}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <Text type="secondary">Coverage {index + 1}</Text>
+                        <Title level={4} style={{ marginTop: 0, marginBottom: 8 }}>
+                          {coverage.vehicleNo}
+                        </Title>
+                      </div>
+                      <Checkbox checked={isSelected} />
+                    </div>
 
-        {/* Info */}
-        <Row gutter={[16, 16]}>
-          <Col span={12}>
-            <Text type="secondary">Vehicle No.</Text>
-            <div style={{ fontWeight: 600 }}>MDY1320</div>
-          </Col>
+                    <Row gutter={[16, 12]}>
+                      <Col xs={24} md={12}>
+                        <Text type="secondary">Insured Person Name</Text>
+                        <div style={{ fontWeight: 600 }}>{coverage.insuredPersonName}</div>
+                      </Col>
 
-          <Col span={12}>
-            <Text type="secondary">Coverage Type</Text>
-            <div style={{ fontWeight: 600 }}>Comprehensive</div>
-          </Col>
+                      <Col xs={24} md={12}>
+                        <Text type="secondary">Coverage Type</Text>
+                        <div style={{ fontWeight: 600 }}>{coverage.coverageType}</div>
+                      </Col>
 
-          <Col span={12}>
-            <Text type="secondary">Effective Date</Text>
-            <div style={{ fontWeight: 600 }}>28 Mar 2026</div>
-          </Col>
+                      <Col xs={24} md={12}>
+                        <Text type="secondary">Effective Date</Text>
+                        <div style={{ fontWeight: 600 }}>{moment(coverage.effectiveDate).format('DD MMM YYYY')}</div>
+                      </Col>
 
-          <Col span={12}>
-            <Text type="secondary">Expiry Date</Text>
-            <div style={{ fontWeight: 600 }}>27 Mar 2027</div>
-          </Col>
+                      <Col xs={24} md={12}>
+                        <Text type="secondary">Expiry Date</Text>
+                        <div style={{ fontWeight: 600 }}>{moment(coverage.expiryDate).format('DD MMM YYYY')}</div>
+                      </Col>
+                    </Row>
+                  </Card>
+                </Col>
+              );
+            })}
           </Row>
-        
-        </Card>
+        )}
+      </div>
         </Card>
       </div>
     );
@@ -473,7 +599,7 @@ function SubmitClaimScreen({ onSubmit }) {
                 <Card
                   hoverable
                   style={optionCardStyle(selectedType === 'Vehicle Damages')}
-                  bodyStyle={{ width: '100%' }}
+                  styles={{ body: { width: '100%' } }}
                   onClick={() => {
                     setDocumentFiles({});
                     form.setFieldsValue({ vehicleClaimType: 'Vehicle Damages' });
@@ -496,7 +622,7 @@ function SubmitClaimScreen({ onSubmit }) {
                 <Card
                   hoverable
                   style={optionCardStyle(selectedType === 'Vehicle Got Stolen')}
-                  bodyStyle={{ width: '100%' }}
+                  styles={{ body: { width: '100%' } }}
                   onClick={() => {
                     setDocumentFiles({});
                     form.setFieldsValue({ vehicleClaimType: 'Vehicle Got Stolen' });
@@ -551,13 +677,18 @@ function SubmitClaimScreen({ onSubmit }) {
               placeholder="Please describe the incident in detail..."
               maxLength={1000}
               showCount
+              value={incidentDescription}
+              onChange={(event) => {
+                setIncidentDescription(event.target.value);
+                form.setFieldValue('incidentDescription', event.target.value);
+              }}
             />
           </Form.Item>
 
           <Title level={4} style={{ marginTop: 24 }}>Upload Document</Title>
           <Text type="secondary">
             Upload a copy or image of the following documents.
-            Total size must not exceed 20MB and accepted formats are JPG, PNG and HEIC only.
+            Files will be uploaded securely to cloud storage. Total size must not exceed 20MB and accepted formats are JPG, PNG, PDF and HEIC.
           </Text>
 
           <Alert
@@ -629,7 +760,7 @@ function SubmitClaimScreen({ onSubmit }) {
                           onChange={handleDocumentUpload(doc.key)}
                           beforeUpload={() => false}
                           maxCount={1}
-                          accept=".jpg,.jpeg,.png,.heic"
+                          accept=".jpg,.jpeg,.png,.pdf,.heic"
                           showUploadList={false}
                         >
                           <Button
@@ -652,7 +783,7 @@ function SubmitClaimScreen({ onSubmit }) {
   };
   
   // Build review section helper
-  const buildReviewSection = ({ title, icon, items }) => {
+  const buildReviewSection = ({ title, icon, items, labelWidth = 120 }) => {
     return (
       <div>
         <div style={{ display: 'flex', alignItems: 'center' }}>
@@ -672,7 +803,7 @@ function SubmitClaimScreen({ onSubmit }) {
                 paddingLeft: 26
               }}
             >
-              <div style={{ width: 100 }}>
+              <div style={{ width: labelWidth, minWidth: labelWidth }}>
                 <Text type="secondary">{item.label}:</Text>
               </div>
               <div style={{ flex: 1 }}>
@@ -690,6 +821,9 @@ function SubmitClaimScreen({ onSubmit }) {
     // Get the latest form values directly from form instance
     const formValues = form.getFieldsValue(true);
     const requiredDocs = getRequiredDocuments(formValues.vehicleClaimType);
+    const selectedCoverageDetails = coverageOptions.find((coverage) =>
+      coverage.coverageId === selectedCoverage
+    );
     
     // Helper function to display file lists with names
     const renderFileList = (files = []) => {
@@ -707,24 +841,16 @@ function SubmitClaimScreen({ onSubmit }) {
         <Card style={{ marginTop: 24 }}>
           <div style={{ marginBottom: 24 }}>
             {buildReviewSection({
-              title: 'When didi it happen?',
+              title: 'Incident Information',
               icon: <FileTextOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
               items: [
                 { 
-                  label: 'Date', 
-                  value: formValues.incidentDate ? formValues.incidentDate.format('DD/MM/YYYY') : 'Not provided' 
+                  label: 'Date',
+                  value: incidentDateString || 'Not provided'
                 },
                 { 
-                  label: 'Time', 
-                  value: formValues.incidentTime ? formValues.incidentTime.format('HH:mm') : 'Not provided' 
-                },
-                { 
-                  label: 'Type', 
-                  value: formValues.accidentType || 'Not provided' 
-                },
-                { 
-                  label: 'Location', 
-                  value: formValues.location || 'Not provided' 
+                  label: 'Incident Details',
+                  value: incidentDescription || 'Not provided'
                 },
               ]
             })}
@@ -732,37 +858,25 @@ function SubmitClaimScreen({ onSubmit }) {
             <Divider style={{ margin: '16px 0' }} />
             
             {buildReviewSection({
-              title: 'Vehicle Information',
+              title: 'Select Coverage',
               icon: <CarOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
-              items: [
-                { 
-                  label: 'Registration', 
-                  value: formValues.vehicleRegistration || 'Not provided' 
-                },
-                { 
-                  label: 'Make', 
-                  value: formValues.vehicleMake || 'Not provided' 
-                },
-                { 
-                  label: 'Model', 
-                  value: formValues.vehicleModel || 'Not provided' 
-                },
-              ]
+              items: selectedCoverageDetails
+                ? [{
+                    label: 'Selected Coverage',
+                    value: `${selectedCoverageDetails.insuredPersonName} | ${selectedCoverageDetails.vehicleNo} | ${selectedCoverageDetails.coverageType} | ${moment(selectedCoverageDetails.effectiveDate).format('DD MMM YYYY')} - ${moment(selectedCoverageDetails.expiryDate).format('DD MMM YYYY')}`
+                  }]
+                : [{ label: 'Selected Coverage', value: 'Not provided' }]
             })}
             
             <Divider style={{ margin: '16px 0' }} />
             
             {buildReviewSection({
-              title: 'Claim Information',
+              title: 'Vehicle Claim Type',
               icon: <CheckCircleOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
               items: [
                 {
                   label: 'Vehicle Claim Type',
                   value: formValues.vehicleClaimType || 'Not provided'
-                },
-                {
-                  label: 'Incident Details',
-                  value: formValues.incidentDescription || 'Not provided'
                 }
               ]
             })}
@@ -775,7 +889,8 @@ function SubmitClaimScreen({ onSubmit }) {
               items: requiredDocs.map((doc) => ({
                 label: doc.label,
                 value: renderFileList(documentFiles[doc.key] || [])
-              }))
+              })),
+              labelWidth: 260
             })}
           </div>
           
@@ -817,6 +932,81 @@ function SubmitClaimScreen({ onSubmit }) {
   
   return (
     <div style={{ padding: '24px' }}>
+      <Modal
+        open={successModalOpen}
+        title={null}
+        okText="Track My Claim"
+        cancelText="Submit Another"
+        centered
+        width={520}
+        onCancel={() => setSuccessModalOpen(false)}
+        onOk={() => {
+          setSuccessModalOpen(false);
+
+          if (onSubmit && submittedClaimData) {
+            onSubmit(submittedClaimData);
+          }
+        }}
+      >
+        <div style={{ textAlign: 'center', padding: '12px 8px 4px' }}>
+          <div
+            style={{
+              width: 88,
+              height: 88,
+              margin: '0 auto 20px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #fff2e8 0%, #ffe7d1 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 10px 30px rgba(255, 102, 0, 0.18)',
+            }}
+          >
+            <CheckCircleOutlined style={{ fontSize: 42, color: '#FF6600' }} />
+          </div>
+
+          <Title level={3} style={{ marginBottom: 8 }}>
+            Claim Submitted Successfully
+          </Title>
+
+          <Text style={{ display: 'block', color: '#5f6b76', fontSize: 15, lineHeight: 1.7 }}>
+            Your motor claim has been sent to Etiqa and is now in the system.
+          </Text>
+
+          <div
+            style={{
+              marginTop: 20,
+              padding: '16px 18px',
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, #fffaf5 0%, #fff3e8 100%)',
+              border: '1px solid #ffe0c2',
+              textAlign: 'left',
+            }}
+          >
+            <Text strong style={{ display: 'block', marginBottom: 8, color: '#b45309' }}>
+              What happens next
+            </Text>
+            <Text style={{ display: 'block', color: '#6b7280', marginBottom: 6 }}>
+              Your claim will appear in the tracking area for status updates.
+            </Text>
+            <Text style={{ display: 'block', color: '#6b7280' }}>
+              If more documents are needed, you will be notified in the customer portal.
+            </Text>
+          </div>
+
+          {submittedClaimData?.id ? (
+            <div style={{ marginTop: 16 }}>
+              <Text type="secondary">Claim ID</Text>
+              <div style={{ marginTop: 4 }}>
+                <Text strong style={{ fontSize: 16, letterSpacing: 0.4 }}>
+                  {submittedClaimData.id}
+                </Text>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+
       <div style={{ textAlign: 'center', marginBottom: 32 }}>
         <div 
           style={{ 
@@ -839,6 +1029,16 @@ function SubmitClaimScreen({ onSubmit }) {
       {buildStepIndicator()}
       
       <div style={{ margin: '32px 0' }}>
+        {submitError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="Unable to submit claim"
+            description={submitError}
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
+
         <Form
           form={form}
           layout="vertical"
@@ -876,7 +1076,7 @@ function SubmitClaimScreen({ onSubmit }) {
           icon={currentStep < 4 ? <ArrowRightOutlined /> : <CheckOutlined />}
           onClick={currentStep < 4 ? handleNext : handleSubmit}
           style={{ backgroundColor: '#FF6600', borderColor: '#FF6600' }}
-          disabled={currentStep === 4 && !termsAgreed}
+          loading={submitting}
         >
           {currentStep < 4 ? 'Next' : 'Submit Claim'}
         </Button>
@@ -886,13 +1086,6 @@ function SubmitClaimScreen({ onSubmit }) {
 }
 
 export default SubmitClaimScreen;
-
-
-
-
-
-
-
 
 
 

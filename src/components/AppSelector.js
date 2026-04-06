@@ -1,5 +1,5 @@
 import React from 'react';
-import { Card, Button, Typography, Row, Col, Space, Divider } from 'antd';
+import { Card, Button, Typography, Row, Col, Space } from 'antd';
 import { UserOutlined, TeamOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import '../styles/AppSelector.css';
@@ -113,7 +113,7 @@ function AppSelector() {
               icon={<UserOutlined />}
               color="#2196F3"
               features={customerFeatures}
-              onClick={() => navigate('/customer')}
+              onClick={() => navigate('/customer/auth')}
             />
           </Col>
           
@@ -125,7 +125,7 @@ function AppSelector() {
               icon={<TeamOutlined />}
               color="#FF6600"
               features={officerFeatures}
-              onClick={() => navigate('/officer')}
+              onClick={() => navigate('/officer/auth')}
             />
           </Col>
         </Row>

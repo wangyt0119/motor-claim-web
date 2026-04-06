@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Avatar, Typography, Divider, Modal, Button } from 'antd';
+import React, { useEffect, useState } from 'react';
+import { Layout, Menu, Avatar, Typography, Divider, Button, message } from 'antd';
 import { 
   PlusCircleOutlined, 
   LineChartOutlined, 
@@ -10,28 +10,62 @@ import {
   CustomerServiceOutlined,
   FileTextOutlined,
   LogoutOutlined,
-  UserOutlined,
-  BarChartOutlined
+  UserOutlined
 } from '@ant-design/icons';
-import { Routes, Route, useNavigate, Navigate } from 'react-router-dom';
+import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import SubmitClaimScreen from './SubmitClaimScreen';
 import TrackClaimScreen from './TrackClaimScreen';
 import ClaimHistoryScreen from './ClaimHistoryScreen';
 import NotificationHistoryScreen from './NotificationHistoryScreen';
 import ClaimPaymentsScreen from './ClaimPaymentsScreen';
-import TrackValidationProcess from './TrackValidationProcess';
 import '../styles/MainScreen.css';
-
-// Import sample claim data
-import { sampleClaims } from '../data/sampleData';
+import { getMyClaims } from '../services/claimService';
+import { getMyCoverages } from '../services/coverageService';
 
 const { Sider, Content } = Layout;
-const { Title, Text } = Typography;
+const { Text } = Typography;
 
-function MainScreen({ onSignOut }) {
-  const [claims, setClaims] = useState(sampleClaims);
+function MainScreen({ onSignOut, currentUser }) {
+  const [claims, setClaims] = useState([]);
   const [selectedKey, setSelectedKey] = useState('submit');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const routeKey = location.pathname.split('/')[2] || 'submit';
+    setSelectedKey(routeKey);
+  }, [location.pathname]);
+
+  useEffect(() => {
+    const loadClaims = async () => {
+      try {
+        const [claimList, coverageList] = await Promise.all([getMyClaims(), getMyCoverages()]);
+        const coverageById = new Map(
+          coverageList.map((coverage) => [coverage.coverageId, coverage])
+        );
+
+        setClaims(
+          claimList.map((claim) => {
+            const relatedCoverage = coverageById.get(claim.coverageId);
+
+            return {
+              ...claim,
+              vehicleRegistration: relatedCoverage?.vehicleNo || claim.vehicleRegistration,
+              vehicleModel: relatedCoverage?.coverageType || claim.vehicleModel,
+            };
+          })
+        );
+      } catch (error) {
+        message.error(
+          error?.response?.data?.message ||
+            error?.response?.data?.title ||
+            'Unable to load your claims from the backend.'
+        );
+      }
+    };
+
+    loadClaims();
+  }, []);
 
   const handleMenuClick = (key) => {
     setSelectedKey(key);
@@ -40,30 +74,18 @@ function MainScreen({ onSignOut }) {
   };
 
   const addNewClaim = (newClaim) => {
-    setClaims([...claims, newClaim]);
+    setClaims((previousClaims) => [newClaim, ...previousClaims]);
     setSelectedKey('track');
-    // Use absolute path
     navigate('/customer/track');
   };
 
-  const showSignOutDialog = () => {
-    Modal.confirm({
-      title: 'Sign Out',
-      icon: <LogoutOutlined style={{ color: '#FF6600' }} />,
-      content: 'Are you sure you want to sign out? You will be redirected to the portal selection page.',
-      okText: 'Sign Out',
-      cancelText: 'Cancel',
-      okButtonProps: { 
-        style: { backgroundColor: '#FF6600', borderColor: '#FF6600' } 
-      },
-      onOk: () => {
-        if (onSignOut) {
-          onSignOut();
-        } else {
-          window.location.href = '/';
-        }
-      },
-    });
+  const handleSignOutClick = () => {
+    if (onSignOut) {
+      onSignOut();
+      return;
+    }
+
+    window.location.replace('/');
   };
 
   return (
@@ -85,8 +107,10 @@ function MainScreen({ onSignOut }) {
         <div className="user-info">
           <Avatar size={40} icon={<UserOutlined />} style={{ backgroundColor: '#FF6600' }} />
           <div className="user-details">
-            <Text strong>Yuting</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>Policy: POL-78901234</Text>
+            <Text strong>{currentUser?.fullName || currentUser?.FullName || 'Customer'}</Text>
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {currentUser?.email || currentUser?.Email || 'Signed in customer portal user'}
+            </Text>
           </div>
         </div>
         
@@ -168,9 +192,10 @@ function MainScreen({ onSignOut }) {
           
           <div className="sign-out-container">
             <Button 
+              className="sign-out-button"
               icon={<LogoutOutlined />} 
               block
-             onClick={() => navigate('/')}
+              onClick={handleSignOutClick}
             >
               Sign Out
             </Button>
