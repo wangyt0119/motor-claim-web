@@ -1,73 +1,75 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Alert, Card, Input, Select, Space, Table, Tag, Typography, message } from 'antd';
-import { FileSearchOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import React, { useMemo, useState } from 'react';
+import {
+  Alert,
+  Button,
+  Card,
+  Col,
+  Input,
+  Row,
+  Select,
+  Space,
+  Statistic,
+  Table,
+  Tag,
+  Typography,
+} from 'antd';
+import {
+  EyeOutlined,
+  FileSearchOutlined,
+  ReloadOutlined,
+  SafetyCertificateOutlined,
+  SearchOutlined,
+  UserOutlined,
+} from '@ant-design/icons';
 import moment from 'moment';
-import { getAllClaims } from '../services/claimService';
+import ClaimWorkflowDrawer from './ClaimWorkflowDrawer';
 
 const { Title, Text } = Typography;
 
-function AllClaimsOfficerScreen() {
-  const [claims, setClaims] = useState([]);
-  const [loading, setLoading] = useState(true);
+function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onClaimsChanged }) {
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-
-  useEffect(() => {
-    loadClaims();
-  }, []);
-
-  const loadClaims = async () => {
-    setLoading(true);
-
-    try {
-      const allClaims = await getAllClaims();
-      setClaims(allClaims);
-    } catch (error) {
-      message.error(
-        error?.response?.data?.message ||
-          error?.response?.data?.title ||
-          'Unable to load all claims for the officer portal.'
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
+  const [stpFilter, setStpFilter] = useState('All');
+  const [selectedClaim, setSelectedClaim] = useState(null);
 
   const filteredClaims = useMemo(() => {
+    const normalizedSearch = searchText.trim().toLowerCase();
+
     return claims.filter((claim) => {
       const matchesStatus = statusFilter === 'All' || claim.status === statusFilter;
-      const normalizedSearch = searchText.trim().toLowerCase();
+      const matchesStp =
+        stpFilter === 'All' ||
+        (stpFilter === 'Passed' && claim.isStpApproved) ||
+        (stpFilter === 'Manual Review' && !claim.isStpApproved);
 
       if (!normalizedSearch) {
-        return matchesStatus;
+        return matchesStatus && matchesStp;
       }
 
-      const matchesSearch =
-        String(claim.id || '').toLowerCase().includes(normalizedSearch) ||
-        String(claim.type || '').toLowerCase().includes(normalizedSearch) ||
-        String(claim.coverageId || '').toLowerCase().includes(normalizedSearch) ||
-        String(claim.status || '').toLowerCase().includes(normalizedSearch);
+      const haystack = [
+        claim.id,
+        claim.type,
+        claim.coverageId,
+        claim.coverage?.insuredPersonName,
+        claim.coverage?.vehicleNo,
+        claim.coverage?.coverageType,
+        claim.userId,
+        claim.status,
+        claim.stpStatus,
+        claim.incidentDescription,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase();
 
-      return matchesStatus && matchesSearch;
+      return matchesStatus && matchesStp && haystack.includes(normalizedSearch);
     });
-  }, [claims, searchText, statusFilter]);
+  }, [claims, searchText, statusFilter, stpFilter]);
 
   const statusOptions = ['All', ...new Set(claims.map((claim) => claim.status).filter(Boolean))];
-
-  const getStatusColor = (status) => {
-    switch ((status || '').toLowerCase()) {
-      case 'pending':
-        return 'gold';
-      case 'submitted':
-        return 'blue';
-      case 'approved':
-        return 'green';
-      case 'rejected':
-        return 'red';
-      default:
-        return 'default';
-    }
-  };
+  const totalClaims = claims.length;
+  const stpPassedCount = claims.filter((claim) => claim.isStpApproved).length;
+  const manualReviewCount = claims.filter((claim) => !claim.isStpApproved).length;
 
   const columns = [
     {
@@ -75,13 +77,27 @@ function AllClaimsOfficerScreen() {
       dataIndex: 'id',
       key: 'id',
       width: 180,
+      render: (value) => <Text strong>{value}</Text>,
     },
     {
-      title: 'Coverage ID',
+      title: 'Customer',
+      dataIndex: 'userId',
+      key: 'userId',
+      width: 180,
+      render: (value) => (value ? <Text copyable>{value}</Text> : 'Not available'),
+    },
+    {
+      title: 'Coverage',
       dataIndex: 'coverageId',
       key: 'coverageId',
-      ellipsis: true,
-      render: (value) => <Text copyable>{value}</Text>,
+      width: 260,
+      render: (value, claim) => (
+        <Space direction="vertical" size={2}>
+          <Text strong>{claim.coverage?.vehicleNo || 'Vehicle not available'}</Text>
+          <Text type="secondary">{claim.coverage?.coverageType || 'Coverage type not available'}</Text>
+          {value ? <Text type="secondary" copyable>{value}</Text> : <Text type="secondary">Coverage ID not available</Text>}
+        </Space>
+      ),
     },
     {
       title: 'Submitted On',
@@ -91,31 +107,49 @@ function AllClaimsOfficerScreen() {
       render: (value) => moment(value).format('DD MMM YYYY'),
     },
     {
-      title: 'Incident Date',
-      dataIndex: 'incidentDate',
-      key: 'incidentDate',
-      width: 160,
-      render: (value) => moment(value).format('DD MMM YYYY'),
-    },
-    {
-      title: 'Claim Type',
+      title: 'Type',
       dataIndex: 'type',
       key: 'type',
-      width: 180,
+      width: 170,
     },
     {
-      title: 'Status',
+      title: 'Claim Status',
       dataIndex: 'status',
       key: 'status',
-      width: 140,
+      width: 170,
       render: (value) => <Tag color={getStatusColor(value)}>{value || 'Unknown'}</Tag>,
     },
     {
-      title: 'Description',
-      dataIndex: 'incidentDescription',
-      key: 'incidentDescription',
-      ellipsis: true,
-      render: (value) => value || 'No description',
+      title: 'STP',
+      key: 'stp',
+      width: 220,
+      render: (_, claim) => (
+        <Space direction="vertical" size={4}>
+          <Tag color={claim.isStpApproved ? 'success' : 'warning'}>
+            {claim.isStpApproved ? 'Passed' : 'Manual Review'}
+          </Tag>
+          <Text type="secondary">{formatStpStatus(claim.stpStatus)}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Documents',
+      key: 'documents',
+      width: 120,
+      render: (_, claim) => (
+        <Tag color="processing">{claim.documents?.length || 0} uploaded</Tag>
+      ),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: 120,
+      fixed: 'right',
+      render: (_, claim) => (
+        <Button icon={<EyeOutlined />} onClick={() => setSelectedClaim(claim)}>
+          View
+        </Button>
+      ),
     },
   ];
 
@@ -126,7 +160,7 @@ function AllClaimsOfficerScreen() {
           All Claims
         </Title>
         <Text type="secondary">
-          View every submitted claim available to officer and admin accounts.
+          Review live claims, STP outcome, backend validation reasons, and uploaded documents.
         </Text>
       </div>
 
@@ -135,25 +169,54 @@ function AllClaimsOfficerScreen() {
         showIcon
         style={{ marginBottom: 20 }}
         message="Officer Access"
-        description="This screen reads from GET /api/Claim/all and is restricted by your OfficerOrAdmin backend policy."
+        description="This screen combines GET /api/Claim/all with GET /api/Coverage/all-coverages, so each review can keep the submitted claim details first while still showing the related policy holder, vehicle, and coverage period."
       />
+
+      <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
+        <Col xs={24} md={8}>
+          <Card style={{ borderRadius: 16 }}>
+            <Statistic title="Total Claims" value={totalClaims} prefix={<FileSearchOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card style={{ borderRadius: 16 }}>
+            <Statistic title="STP Passed" value={stpPassedCount} prefix={<SafetyCertificateOutlined />} />
+          </Card>
+        </Col>
+        <Col xs={24} md={8}>
+          <Card style={{ borderRadius: 16 }}>
+            <Statistic title="Manual Review" value={manualReviewCount} prefix={<UserOutlined />} />
+          </Card>
+        </Col>
+      </Row>
 
       <Card style={{ borderRadius: 16 }}>
         <Space style={{ width: '100%', marginBottom: 16 }} wrap>
           <Input
             allowClear
             prefix={<SearchOutlined />}
-            placeholder="Search by claim ID, status, type or coverage ID"
+            placeholder="Search by claim ID, customer ID, coverage ID, type, status or STP"
             value={searchText}
             onChange={(event) => setSearchText(event.target.value)}
-            style={{ width: 320 }}
+            style={{ width: 360 }}
           />
 
           <Select
             value={statusFilter}
             onChange={setStatusFilter}
-            style={{ width: 180 }}
+            style={{ width: 200 }}
             options={statusOptions.map((status) => ({ label: status, value: status }))}
+          />
+
+          <Select
+            value={stpFilter}
+            onChange={setStpFilter}
+            style={{ width: 180 }}
+            options={[
+              { label: 'All STP Results', value: 'All' },
+              { label: 'STP Passed', value: 'Passed' },
+              { label: 'Manual Review', value: 'Manual Review' },
+            ]}
           />
 
           <Tag icon={<FileSearchOutlined />} color="processing" style={{ padding: '6px 10px' }}>
@@ -164,7 +227,7 @@ function AllClaimsOfficerScreen() {
             icon={<ReloadOutlined />}
             color="default"
             style={{ padding: '6px 10px', cursor: 'pointer' }}
-            onClick={loadClaims}
+            onClick={onRefresh}
           >
             Refresh
           </Tag>
@@ -176,11 +239,47 @@ function AllClaimsOfficerScreen() {
           loading={loading}
           rowKey="id"
           pagination={{ pageSize: 8 }}
-          scroll={{ x: 1100 }}
+          scroll={{ x: 1500 }}
+          onRow={(claim) => ({
+            onClick: () => setSelectedClaim(claim),
+            style: { cursor: 'pointer' },
+          })}
         />
       </Card>
+
+      <ClaimWorkflowDrawer
+        claim={selectedClaim}
+        open={Boolean(selectedClaim)}
+        onClose={() => setSelectedClaim(null)}
+        onWorkflowUpdated={onClaimsChanged}
+      />
     </div>
   );
+}
+
+function getStatusColor(status) {
+  switch ((status || '').toLowerCase()) {
+    case 'pending':
+      return 'gold';
+    case 'submitted':
+      return 'blue';
+    case 'approved':
+      return 'green';
+    case 'pending manual review':
+      return 'orange';
+    case 'rejected':
+      return 'red';
+    default:
+      return 'default';
+  }
+}
+
+function formatStpStatus(status) {
+  if (status === null || status === undefined || status === '') {
+    return 'Unknown';
+  }
+
+  return String(status);
 }
 
 export default AllClaimsOfficerScreen;

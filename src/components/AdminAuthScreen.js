@@ -7,7 +7,7 @@ import { USER_ROLE, normalizeRole } from '../constants/userRoles';
 
 const { Title, Text, Paragraph } = Typography;
 
-function OfficerAuthScreen({ onAuthenticated }) {
+function AdminAuthScreen({ onAuthenticated }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,8 +24,8 @@ function OfficerAuthScreen({ onAuthenticated }) {
 
       const role = normalizeRole(session?.user?.role ?? session?.user?.Role);
 
-      if (role !== USER_ROLE.Officer) {
-        throw new Error('Only officer accounts can access this portal.');
+      if (role !== USER_ROLE.Admin) {
+        throw new Error('Only admin accounts can access this portal.');
       }
 
       onAuthenticated(session);
@@ -34,7 +34,7 @@ function OfficerAuthScreen({ onAuthenticated }) {
         loginError?.response?.data?.message ||
           loginError?.response?.data?.title ||
           loginError?.message ||
-          'Unable to sign in to the officer portal.'
+          'Unable to sign in to the admin portal.'
       );
     } finally {
       setLoading(false);
@@ -51,12 +51,12 @@ function OfficerAuthScreen({ onAuthenticated }) {
             alt="Etiqa Logo"
             className="auth-screen__logo"
           />
-          <Text className="auth-screen__eyebrow">Officer Access Portal</Text>
+          <Text className="auth-screen__eyebrow">Admin Control Portal</Text>
           <Title level={1} className="auth-screen__title">
-            Sign in to the official claims dashboard
+            Monitor system activity and platform health
           </Title>
           <Paragraph className="auth-screen__description">
-            This portal is restricted to authorized Etiqa claims officers. Use the registered officer email and password to continue.
+            This portal is restricted to authorized system administrators who oversee monitoring, audit visibility, and platform integrity.
           </Paragraph>
         </div>
 
@@ -69,25 +69,25 @@ function OfficerAuthScreen({ onAuthenticated }) {
             className="auth-form"
           >
             <Title level={3} className="auth-form__title">
-              Officer Login
+              Admin Login
             </Title>
-            <Text type="secondary">Sign in with your authorized officer account.</Text>
+            <Text type="secondary">Sign in with your authorized admin account.</Text>
 
             <div style={{ marginTop: 16 }}>
               {error ? <Alert type="error" showIcon message={error} /> : null}
             </div>
 
             <Form.Item
-              label="Officer Email"
+              label="Admin Email"
               name="email"
               rules={[
-                { required: true, message: 'Please enter the officer email.' },
+                { required: true, message: 'Please enter the admin email.' },
                 { type: 'email', message: 'Please enter a valid email address.' },
               ]}
             >
               <Input
                 prefix={<MailOutlined />}
-                placeholder="name@etiqa.com.my"
+                placeholder="admin@etiqa.com.my"
                 size="large"
                 autoComplete="username"
               />
@@ -96,11 +96,11 @@ function OfficerAuthScreen({ onAuthenticated }) {
             <Form.Item
               label="Password"
               name="password"
-              rules={[{ required: true, message: 'Please enter the officer password.' }]}
+              rules={[{ required: true, message: 'Please enter the admin password.' }]}
             >
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="Enter officer password"
+                placeholder="Enter admin password"
                 size="large"
                 autoComplete="current-password"
               />
@@ -114,7 +114,7 @@ function OfficerAuthScreen({ onAuthenticated }) {
               loading={loading}
               block
             >
-              Access Officer Portal
+              Access Admin Portal
             </Button>
 
             <Button
@@ -132,4 +132,4 @@ function OfficerAuthScreen({ onAuthenticated }) {
   );
 }
 
-export default OfficerAuthScreen;
+export default AdminAuthScreen;

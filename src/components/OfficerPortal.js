@@ -10,7 +10,7 @@ function OfficerPortal() {
 
   const isAuthenticated = useMemo(() => {
     const role = normalizeRole(session?.user?.role ?? session?.user?.Role);
-    return Boolean(session?.token) && [USER_ROLE.Officer, USER_ROLE.Admin].includes(role);
+    return Boolean(session?.token) && role === USER_ROLE.Officer;
   }, [session]);
 
   const handleAuthenticated = (newSession) => {

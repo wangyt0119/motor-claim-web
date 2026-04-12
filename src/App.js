@@ -2,8 +2,10 @@ import React from 'react';
 import { ConfigProvider } from 'antd';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppSelector from './components/AppSelector';
+import AdminPortal from './components/AdminPortal';
 import CustomerPortal from './components/CustomerPortal';
 import OfficerPortal from './components/OfficerPortal';
+import PanelWorkshopPortal from './components/PanelWorkshopPortal';
 import './App.css';
 
 function App() {
@@ -20,6 +22,8 @@ function App() {
         <Route path="/" element={<AppSelector />} />
         <Route path="/customer/*" element={<CustomerPortal />} />
         <Route path="/officer/*" element={<OfficerPortal />} />
+        <Route path="/admin/*" element={<AdminPortal />} />
+        <Route path="/panel-workshop/*" element={<PanelWorkshopPortal />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </ConfigProvider>

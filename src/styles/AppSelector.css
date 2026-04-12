@@ -8,7 +8,7 @@
 }
 
 .app-selector-content {
-  max-width: 1000px;
+  max-width: 1180px;
   width: 100%;
 }
 
@@ -53,7 +53,7 @@
 
 .selection-card {
   height: 100%;
-  min-height: 450px;
+  min-height: 420px;
   display: flex;
   flex-direction: column;
   padding: 28px;

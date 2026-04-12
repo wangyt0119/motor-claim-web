@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Alert, Button, Card, Form, Input, Typography } from 'antd';
-import { LockOutlined, LoginOutlined, MailOutlined, SafetyCertificateOutlined } from '@ant-design/icons';
+import { LockOutlined, LoginOutlined, MailOutlined, ToolOutlined } from '@ant-design/icons';
 import { loginCustomer } from '../services/authService';
 import '../styles/AuthScreen.css';
 import { USER_ROLE, normalizeRole } from '../constants/userRoles';
 
 const { Title, Text, Paragraph } = Typography;
 
-function OfficerAuthScreen({ onAuthenticated }) {
+function PanelWorkshopAuthScreen({ onAuthenticated }) {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -24,8 +24,8 @@ function OfficerAuthScreen({ onAuthenticated }) {
 
       const role = normalizeRole(session?.user?.role ?? session?.user?.Role);
 
-      if (role !== USER_ROLE.Officer) {
-        throw new Error('Only officer accounts can access this portal.');
+      if (role !== USER_ROLE.PanelWorkshop) {
+        throw new Error('Only panel workshop accounts can access this portal.');
       }
 
       onAuthenticated(session);
@@ -34,7 +34,7 @@ function OfficerAuthScreen({ onAuthenticated }) {
         loginError?.response?.data?.message ||
           loginError?.response?.data?.title ||
           loginError?.message ||
-          'Unable to sign in to the officer portal.'
+          'Unable to sign in to the panel workshop portal.'
       );
     } finally {
       setLoading(false);
@@ -51,78 +51,53 @@ function OfficerAuthScreen({ onAuthenticated }) {
             alt="Etiqa Logo"
             className="auth-screen__logo"
           />
-          <Text className="auth-screen__eyebrow">Officer Access Portal</Text>
+          <Text className="auth-screen__eyebrow">Panel Workshop Portal</Text>
           <Title level={1} className="auth-screen__title">
-            Sign in to the official claims dashboard
+            Access booked repair appointments and approved claim details
           </Title>
           <Paragraph className="auth-screen__description">
-            This portal is restricted to authorized Etiqa claims officers. Use the registered officer email and password to continue.
+            This portal is for approved panel workshop accounts linked to a workshop record in your backend database.
           </Paragraph>
         </div>
 
         <Card className="auth-card" bordered={false}>
-          <Form
-            form={form}
-            layout="vertical"
-            onFinish={handleLogin}
-            requiredMark={false}
-            className="auth-form"
-          >
+          <Form form={form} layout="vertical" onFinish={handleLogin} requiredMark={false} className="auth-form">
             <Title level={3} className="auth-form__title">
-              Officer Login
+              Panel Workshop Login
             </Title>
-            <Text type="secondary">Sign in with your authorized officer account.</Text>
+            <Text type="secondary">Sign in with the workshop account created by the admin.</Text>
 
-            <div style={{ marginTop: 16 }}>
-              {error ? <Alert type="error" showIcon message={error} /> : null}
-            </div>
+            <div style={{ marginTop: 16 }}>{error ? <Alert type="error" showIcon message={error} /> : null}</div>
 
             <Form.Item
-              label="Officer Email"
+              label="Workshop Email"
               name="email"
               rules={[
-                { required: true, message: 'Please enter the officer email.' },
+                { required: true, message: 'Please enter the workshop email.' },
                 { type: 'email', message: 'Please enter a valid email address.' },
               ]}
             >
-              <Input
-                prefix={<MailOutlined />}
-                placeholder="name@etiqa.com.my"
-                size="large"
-                autoComplete="username"
-              />
+              <Input prefix={<MailOutlined />} placeholder="workshop@email.com" size="large" autoComplete="username" />
             </Form.Item>
 
             <Form.Item
               label="Password"
               name="password"
-              rules={[{ required: true, message: 'Please enter the officer password.' }]}
+              rules={[{ required: true, message: 'Please enter the workshop password.' }]}
             >
               <Input.Password
                 prefix={<LockOutlined />}
-                placeholder="Enter officer password"
+                placeholder="Enter workshop password"
                 size="large"
                 autoComplete="current-password"
               />
             </Form.Item>
 
-            <Button
-              type="primary"
-              htmlType="submit"
-              size="large"
-              icon={<SafetyCertificateOutlined />}
-              loading={loading}
-              block
-            >
-              Access Officer Portal
+            <Button type="primary" htmlType="submit" size="large" icon={<ToolOutlined />} loading={loading} block>
+              Access Workshop Portal
             </Button>
 
-            <Button
-              icon={<LoginOutlined />}
-              block
-              style={{ marginTop: 12 }}
-              onClick={() => window.location.replace('/')}
-            >
+            <Button icon={<LoginOutlined />} block style={{ marginTop: 12 }} onClick={() => window.location.replace('/')}>
               Back to Portal Selection
             </Button>
           </Form>
@@ -132,4 +107,4 @@ function OfficerAuthScreen({ onAuthenticated }) {
   );
 }
 
-export default OfficerAuthScreen;
+export default PanelWorkshopAuthScreen;

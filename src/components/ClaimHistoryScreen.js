@@ -1,297 +1,259 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Card, 
-  Typography, 
-  Table, 
-  Tag, 
-  Input, 
-  Select, 
-  Button, 
-  Space, 
-  Row, 
-  Col, 
-  Modal, 
-  Divider, 
-  Timeline, 
-  Badge, 
-  message,
+import React, { useEffect, useState } from 'react';
+import {
+  Button,
+  Card,
+  Descriptions,
+  Divider,
   Empty,
-  Dropdown,
-  Menu,
-  Radio
+  Input,
+  List,
+  Modal,
+  Row,
+  Col,
+  Select,
+  Space,
+  Tag,
+  Typography,
 } from 'antd';
-import { 
-  SearchOutlined, 
-  HistoryOutlined, 
-  FileTextOutlined, 
-  DownloadOutlined, 
-  PrinterOutlined, 
-  CloseOutlined,
-  CheckCircleOutlined,
-  CloseCircleOutlined,
-  SearchOutlined as SearchIcon,
-  DollarOutlined,
-  CarOutlined,
-  EnvironmentOutlined,
-  FileProtectOutlined,
-  InfoCircleOutlined,
-  CalendarOutlined,
-  DownOutlined,
-  EyeOutlined
-} from '@ant-design/icons';
+import { EyeOutlined, FileTextOutlined, SearchOutlined } from '@ant-design/icons';
+import moment from 'moment';
 
 const { Title, Text } = Typography;
 
-function ClaimHistoryScreen({ claims }) {
+function ClaimHistoryScreen({ claims = [], coverages = [] }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [sortBy, setSortBy] = useState('Date (Newest)');
   const [filteredClaims, setFilteredClaims] = useState([]);
-  
+  const [selectedClaim, setSelectedClaim] = useState(null);
+
   useEffect(() => {
-    if (claims) {
-      let filtered = [...claims];
-      
-      // Apply status filter
-      if (statusFilter !== 'All') {
-        filtered = filtered.filter(claim => claim.status === statusFilter);
-      }
-      
-      // Apply search filter
-      if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        filtered = filtered.filter(claim => 
-          claim.id.toLowerCase().includes(query) ||
-          claim.type.toLowerCase().includes(query) ||
-          claim.vehicleRegistration?.toLowerCase().includes(query)
-        );
-      }
-      
-      // Apply sorting
-      if (sortBy === 'Date (Newest)') {
-        filtered.sort((a, b) => b.date - a.date);
-      } else if (sortBy === 'Date (Oldest)') {
-        filtered.sort((a, b) => a.date - b.date);
-      } else if (sortBy === 'Amount (Highest)') {
-        filtered.sort((a, b) => b.claimAmount - a.claimAmount);
-      } else if (sortBy === 'Amount (Lowest)') {
-        filtered.sort((a, b) => a.claimAmount - b.claimAmount);
-      }
-      
-      setFilteredClaims(filtered);
+    let nextClaims = [...claims];
+
+    if (statusFilter !== 'All') {
+      nextClaims = nextClaims.filter((claim) => claim.status === statusFilter);
     }
-  }, [claims, statusFilter, searchQuery, sortBy]);
-  
-  // Define showClaimDetails function
-  const showClaimDetails = (claim) => {
-    console.log("Opening modal for claim:", claim.id); // Add logging
-    Modal.info({
-      title: null,
-      icon: null,
-      className: 'claim-history-modal',
-      width: 700,
-      maskClosable: true,
-      content: (
-        <div className="claim-detail-modal">
-          <div className="modal-header" style={{ 
-            backgroundColor: '#FF6600', 
-            padding: '16px 24px',
-            margin: '-20px -24px 24px -24px',
-            borderRadius: '2px 2px 0 0',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center'
-          }}>
-            <Title level={4} style={{ color: 'white', margin: 0 }}>
-              Claim Details: {claim.id}
-            </Title>
-            <Button 
-              icon={<CloseOutlined />} 
-              type="text" 
-              style={{ color: 'white' }} 
-              onClick={() => Modal.destroyAll()}
-            />
-          </div>
-          
-          <div style={{ padding: '0 20px' }}>
-            <Row gutter={[24, 24]}>
-              <Col span={12}>
-                <Text type="secondary">Claim Type</Text>
-                <div><Text strong>{claim.type}</Text></div>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">Status</Text>
-                <div>
-                  <Tag color={
-                    claim.status === 'Approved' ? 'green' : 
-                    claim.status === 'Rejected' ? 'red' : 
-                    claim.status.includes('Pending') ? 'orange' : 
-                    claim.status.includes('Flagged') ? 'purple' : 'blue'
-                  }>
-                    {claim.status}
-                  </Tag>
-                </div>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">Date Submitted</Text>
-                <div><Text strong>{claim.date.toLocaleDateString()}</Text></div>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">Claim Amount</Text>
-                <div><Text strong>RM {claim.claimAmount.toFixed(2)}</Text></div>
-              </Col>
-            </Row>
-            
-            <Divider />
-            
-            <Title level={5}>Vehicle Information</Title>
-            <Row gutter={[24, 24]}>
-              <Col span={12}>
-                <Text type="secondary">Vehicle Model</Text>
-                <div><Text strong>{claim.vehicleModel}</Text></div>
-              </Col>
-              <Col span={12}>
-                <Text type="secondary">Registration Number</Text>
-                <div><Text strong>{claim.vehicleRegistration}</Text></div>
-              </Col>
-              <Col span={24}>
-                <Text type="secondary">Incident Location</Text>
-                <div><Text strong>{claim.location}</Text></div>
-              </Col>
-            </Row>
-          </div>
-        </div>
-      ),
-      okButtonProps: { style: { display: 'none' } }
-    });
-  };
-  
-  // Render claim card - updated with proper event handling
-  const renderClaimCard = (claim) => (
-    <Card 
-      key={claim.id}
-      className="claim-card"
-      style={{ 
-        marginBottom: 16, 
-        borderRadius: 12,
-        border: '1px solid #e8e8e8',
-        boxShadow: 'none'
-      }}
-      bodyStyle={{ padding: 16 }}
-      hoverable
-      onClick={() => showClaimDetails(claim)}
-    >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <Tag color={
-            claim.status === 'Approved' ? 'green' : 
-            claim.status === 'Rejected' ? 'red' : 
-            claim.status.includes('Pending') ? 'orange' : 
-            claim.status.includes('Flagged') ? 'purple' : 'blue'
-          }>
-            {claim.status}
-          </Tag>
-          <Text strong style={{ marginLeft: 8, fontSize: 16 }}>{claim.id}</Text>
-        </div>
-        <Text type="secondary">{claim.date.toLocaleDateString()}</Text>
-      </div>
-      
-      <Divider style={{ margin: '16px 0' }} />
-      
-      <Row gutter={16}>
-        <Col span={8}>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>Claim Type</Text>
-            <div><Text strong>{claim.type}</Text></div>
-          </div>
-        </Col>
-        <Col span={8}>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>Vehicle</Text>
-            <div><Text strong>{claim.vehicleRegistration}</Text></div>
-          </div>
-        </Col>
-        <Col span={8}>
-          <div>
-            <Text type="secondary" style={{ fontSize: 12 }}>Amount</Text>
-            <div><Text strong>RM {claim.claimAmount.toFixed(2)}</Text></div>
-          </div>
-        </Col>
-      </Row>
-      
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 12 }}>
-        <Button 
-          type="link" 
-          icon={<EyeOutlined />} 
-          style={{ color: '#FF6600', padding: 0 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            showClaimDetails(claim);
-          }}
-        >
-          View Details
-        </Button>
-      </div>
-    </Card>
-  );
-  
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      nextClaims = nextClaims.filter((claim) =>
+        [claim.id, claim.type, claim.vehicleRegistration, claim.status, claim.reviewStatus]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      );
+    }
+
+    nextClaims.sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime());
+    setFilteredClaims(nextClaims);
+  }, [claims, searchQuery, statusFilter]);
+
+  const statusOptions = ['All', ...new Set(claims.map((claim) => claim.status).filter(Boolean))];
+
   return (
-    <div className="claim-history-container" style={{ padding: 24 }}>
+    <div style={{ padding: 24 }}>
       <Title level={2}>Claim History</Title>
-      
-      <Row gutter={16} style={{ marginBottom: 24 }}>
-        <Col span={12}>
+      <Text type="secondary">Review past submissions, officer decisions, STP results, and workshop bookings.</Text>
+
+      <Row gutter={16} style={{ marginTop: 24, marginBottom: 24 }}>
+        <Col xs={24} md={16}>
           <Input
-            placeholder="Search claims by ID, type, or vehicle"
+            placeholder="Search by claim ID, type, vehicle, or status"
             prefix={<SearchOutlined />}
             value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            style={{ width: '100%' }}
+            onChange={(event) => setSearchQuery(event.target.value)}
           />
         </Col>
-        <Col span={6}>
-          <Select
-            style={{ width: '100%' }}
-            value={statusFilter}
-            onChange={value => setStatusFilter(value)}
-          >
-            <Select.Option value="All">All Statuses</Select.Option>
-            <Select.Option value="Approved">Approved</Select.Option>
-            <Select.Option value="Rejected">Rejected</Select.Option>
-            <Select.Option value="Pending Review">Pending Review</Select.Option>
-            <Select.Option value="Flagged">Flagged</Select.Option>
-          </Select>
-        </Col>
-        <Col span={6}>
-          <Select
-            style={{ width: '100%' }}
-            value={sortBy}
-            onChange={value => setSortBy(value)}
-          >
-            <Select.Option value="Date (Newest)">Date (Newest)</Select.Option>
-            <Select.Option value="Date (Oldest)">Date (Oldest)</Select.Option>
-            <Select.Option value="Amount (Highest)">Amount (Highest)</Select.Option>
-            <Select.Option value="Amount (Lowest)">Amount (Lowest)</Select.Option>
+        <Col xs={24} md={8}>
+          <Select style={{ width: '100%' }} value={statusFilter} onChange={setStatusFilter}>
+            {statusOptions.map((status) => (
+              <Select.Option key={status} value={status}>{status}</Select.Option>
+            ))}
           </Select>
         </Col>
       </Row>
-      
-      <div className="claims-list">
-        {filteredClaims.length > 0 ? (
-          filteredClaims.map(claim => renderClaimCard(claim))
-        ) : (
-          <Empty description="No claims found matching your criteria" />
-        )}
-      </div>
+
+      {filteredClaims.length ? (
+        filteredClaims.map((claim) => (
+          <Card key={claim.id} style={{ marginBottom: 16, borderRadius: 16 }}>
+            <Space direction="vertical" size={12} style={{ width: '100%' }}>
+              <Space wrap>
+                <Tag color={getStatusColor(claim.status)}>{claim.status}</Tag>
+                {claim.reviewStatus ? <Tag color="blue">{formatReviewStatus(claim.reviewStatus)}</Tag> : null}
+                <Tag color={claim.isStpApproved ? 'green' : 'orange'}>{claim.isStpApproved ? 'STP Passed' : 'Manual Review'}</Tag>
+              </Space>
+
+              <Descriptions bordered size="small" column={1}>
+                <Descriptions.Item label="Claim ID">{claim.id}</Descriptions.Item>
+                <Descriptions.Item label="Type">{claim.type}</Descriptions.Item>
+                <Descriptions.Item label="Submitted">{moment(claim.date).format('DD MMM YYYY')}</Descriptions.Item>
+                <Descriptions.Item label="Vehicle">{claim.vehicleRegistration || 'Not available'}</Descriptions.Item>
+                <Descriptions.Item label="Officer note">{claim.officerDecisionNote || 'No officer note'}</Descriptions.Item>
+                <Descriptions.Item label="Workshop booking">
+                  {claim.workshopAppointment
+                    ? `${claim.workshopAppointment.workshopName} on ${moment(claim.workshopAppointment.preferredDate).format('DD MMM YYYY')}`
+                    : 'No workshop booking'}
+                </Descriptions.Item>
+              </Descriptions>
+
+              <Button type="link" icon={<EyeOutlined />} style={{ color: '#FF6600', padding: 0 }} onClick={() => setSelectedClaim(claim)}>
+                View Details
+              </Button>
+            </Space>
+          </Card>
+        ))
+      ) : (
+        <Empty description="No claims found matching your criteria" />
+      )}
+
+      <Modal open={Boolean(selectedClaim)} onCancel={() => setSelectedClaim(null)} footer={null} width={760} title={selectedClaim ? `Claim ${selectedClaim.id}` : 'Claim details'}>
+        {selectedClaim ? (
+          <Space direction="vertical" size={16} style={{ width: '100%' }}>
+            <Card title="Submitted Claim Details">
+              <Descriptions bordered size="small" column={1}>
+                <Descriptions.Item label="Claim ID">{selectedClaim.id}</Descriptions.Item>
+                <Descriptions.Item label="Status">{selectedClaim.status}</Descriptions.Item>
+                <Descriptions.Item label="Review status">{formatReviewStatus(selectedClaim.reviewStatus)}</Descriptions.Item>
+                <Descriptions.Item label="STP status">{selectedClaim.stpStatus || 'Not available'}</Descriptions.Item>
+                <Descriptions.Item label="Claim type">{selectedClaim.type}</Descriptions.Item>
+                <Descriptions.Item label="Submitted at">{moment(selectedClaim.date).format('DD MMM YYYY, hh:mm A')}</Descriptions.Item>
+                <Descriptions.Item label="Incident date">
+                  {selectedClaim.incidentDate ? moment(selectedClaim.incidentDate).format('DD MMM YYYY') : 'Not available'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Description">{selectedClaim.incidentDescription || 'No description'}</Descriptions.Item>
+                <Descriptions.Item label="Officer note">{selectedClaim.officerDecisionNote || 'No officer note'}</Descriptions.Item>
+                <Descriptions.Item label="Requested items">
+                  {selectedClaim.requestedItems?.length ? selectedClaim.requestedItems.map((item) => item.label).join(', ') : 'None'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Customer response note">{selectedClaim.customerResponseNote || 'No response note'}</Descriptions.Item>
+              </Descriptions>
+            </Card>
+
+            <Card title="Coverage Details">
+              <Descriptions bordered size="small" column={1}>
+                <Descriptions.Item label="Coverage ID">{getRelatedCoverage(selectedClaim, coverages)?.coverageId || selectedClaim.coverageId || 'Not available'}</Descriptions.Item>
+                <Descriptions.Item label="Insured person">
+                  {getRelatedCoverage(selectedClaim, coverages)?.insuredPersonName || 'Not available'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Vehicle number">
+                  {getRelatedCoverage(selectedClaim, coverages)?.vehicleNo || selectedClaim.vehicleRegistration || 'Not available'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Coverage type">
+                  {getRelatedCoverage(selectedClaim, coverages)?.coverageType || 'Not available'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Effective date">
+                  {getRelatedCoverage(selectedClaim, coverages)?.effectiveDate
+                    ? moment(getRelatedCoverage(selectedClaim, coverages)?.effectiveDate).format('DD MMM YYYY')
+                    : 'Not available'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Expiry date">
+                  {getRelatedCoverage(selectedClaim, coverages)?.expiryDate
+                    ? moment(getRelatedCoverage(selectedClaim, coverages)?.expiryDate).format('DD MMM YYYY')
+                    : 'Not available'}
+                </Descriptions.Item>
+              </Descriptions>
+            </Card>
+
+            {selectedClaim.workshopAppointment ? (
+              <Card title="Workshop appointment">
+                <Descriptions bordered size="small" column={1}>
+                  <Descriptions.Item label="Workshop">{selectedClaim.workshopAppointment.workshopName}</Descriptions.Item>
+                  <Descriptions.Item label="Address">{selectedClaim.workshopAppointment.workshopAddress}</Descriptions.Item>
+                  <Descriptions.Item label="Date">{moment(selectedClaim.workshopAppointment.preferredDate).format('DD MMM YYYY')}</Descriptions.Item>
+                  <Descriptions.Item label="Time">{formatTimeRange(selectedClaim.workshopAppointment.timeSlotStart, selectedClaim.workshopAppointment.timeSlotEnd)}</Descriptions.Item>
+                  <Descriptions.Item label="Status">{selectedClaim.workshopAppointment.status || 'Pending'}</Descriptions.Item>
+                </Descriptions>
+              </Card>
+            ) : null}
+
+            <Card title={<Space><FileTextOutlined /><span>Submitted Documents</span></Space>}>
+              {selectedClaim.documents?.length ? (
+                <List
+                  dataSource={selectedClaim.documents}
+                  renderItem={(document) => (
+                    <List.Item actions={[<Button key="view" onClick={() => openDocument(document.url)}>View</Button>]}>
+                      <List.Item.Meta
+                        title={document.label}
+                        description={
+                          <Space direction="vertical" size={2}>
+                            <Text>{document.fileName || 'Uploaded file'}</Text>
+                            <Text type="secondary" copyable>{document.url}</Text>
+                          </Space>
+                        }
+                      />
+                    </List.Item>
+                  )}
+                />
+              ) : (
+                <Empty description="No submitted documents returned by the backend" />
+              )}
+
+              {selectedClaim.responseDocuments?.length ? (
+                <>
+                  <Divider />
+                  <Title level={5}>Customer Response Documents</Title>
+                  <List
+                    dataSource={selectedClaim.responseDocuments}
+                    renderItem={(url, index) => (
+                      <List.Item actions={[<Button key="view" onClick={() => openDocument(url)}>View</Button>]}>
+                        <List.Item.Meta title={`Response document ${index + 1}`} description={<Text type="secondary" copyable>{url}</Text>} />
+                      </List.Item>
+                    )}
+                  />
+                </>
+              ) : null}
+            </Card>
+          </Space>
+        ) : null}
+      </Modal>
     </div>
   );
 }
 
+function getStatusColor(status) {
+  switch ((status || '').toLowerCase()) {
+    case 'approved':
+      return 'green';
+    case 'rejected':
+      return 'red';
+    case 'pending customer action':
+      return 'purple';
+    case 'customer responded':
+      return 'blue';
+    case 'pending manual review':
+      return 'orange';
+    default:
+      return 'gold';
+  }
+}
+
+function formatReviewStatus(status) {
+  if (!status) {
+    return 'Not available';
+  }
+
+  return String(status)
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function formatTimeRange(start, end) {
+  if (!start || !end) {
+    return 'Not available';
+  }
+
+  const normalize = (value) => String(value).slice(0, 5);
+  return `${moment(normalize(start), 'HH:mm').format('hh:mm A')} - ${moment(normalize(end), 'HH:mm').format('hh:mm A')}`;
+}
+
+function getRelatedCoverage(claim, coverages) {
+  return claim.relatedCoverage || coverages.find((coverage) => coverage.coverageId === claim.coverageId) || null;
+}
+
+function openDocument(url) {
+  if (url) {
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }
+}
+
 export default ClaimHistoryScreen;
-
-
-
-
-
-
-

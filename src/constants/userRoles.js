@@ -2,6 +2,7 @@ export const USER_ROLE = {
   Customer: 1,
   Officer: 2,
   Admin: 3,
+  PanelWorkshop: 4,
 };
 
 export function normalizeRole(role) {
@@ -25,6 +26,10 @@ export function normalizeRole(role) {
 
   if (roleText === 'admin') {
     return USER_ROLE.Admin;
+  }
+
+  if (roleText === 'panelworkshop' || roleText === 'panel workshop') {
+    return USER_ROLE.PanelWorkshop;
   }
 
   const numericRole = Number(role);

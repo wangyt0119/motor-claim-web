@@ -16,7 +16,7 @@ function CustomerPortal() {
   const handleAuthenticated = (newSession) => {
     saveCustomerSession(newSession);
     setSession(newSession);
-    window.location.replace('/customer/submit');
+    window.location.replace('/customer/dashboard');
   };
 
   const handleSignOut = () => {
@@ -29,13 +29,13 @@ function CustomerPortal() {
     <Routes>
       <Route
         index
-        element={<Navigate to={isAuthenticated ? '/customer/submit' : '/customer/auth'} replace />}
+        element={<Navigate to={isAuthenticated ? '/customer/dashboard' : '/customer/auth'} replace />}
       />
       <Route
         path="auth"
         element={
           isAuthenticated ? (
-            <Navigate to="/customer/submit" replace />
+            <Navigate to="/customer/dashboard" replace />
           ) : (
             <AuthScreen onAuthenticated={handleAuthenticated} />
           )

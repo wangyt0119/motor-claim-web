@@ -1,6 +1,6 @@
 
-import React, { useEffect, useState } from 'react';
-import { Layout, Avatar, Typography, Badge, Button, Row, Col, Card, Statistic } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Layout, Avatar, Typography, Badge, Button, Row, Col, Card, Statistic, message } from 'antd';
 import { 
   DashboardOutlined, 
   FlagOutlined, 
@@ -18,6 +18,8 @@ import {
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import '../styles/OfficerDashboard.css';
+import { getAllClaims } from '../services/claimService';
+import { getAllCoverages } from '../services/coverageService';
 
 // Import all required components
 import ManualReviewQueue from './ManualReviewQueue';
@@ -29,12 +31,16 @@ import TrackValidationProcess from './TrackValidationProcess';
 import NotificationAuditScreen from './NotificationAuditScreen';
 import PaymentMonitoringDashboard from './PaymentMonitoringDashboard';
 import AllClaimsOfficerScreen from './AllClaimsOfficerScreen';
+import ProfileScreen from './ProfileScreen';
 
 const { Sider, Content, Header } = Layout;
 const { Title, Text } = Typography;
 
 function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [claims, setClaims] = useState([]);
+  const [coverages, setCoverages] = useState([]);
+  const [loadingClaims, setLoadingClaims] = useState(true);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,43 +48,52 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       navigate('/officer/dashboard', { replace: true });
     }
   }, [navigate]);
-  
-  // Sample pending claims data
-  const pendingClaims = [
-    {
-      id: 'CLM004',
-      date: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
-      type: 'Vehicle Collision',
-      status: 'Pending Review',
-      location: 'Johor Bahru',
-      vehicleModel: 'Perodua Myvi 2018',
-      vehicleRegistration: 'JHR 1234',
-      claimAmount: 5600.00,
-      policyNumber: 'POL-12345678',
-    },
-    {
-      id: 'CLM005',
-      date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      type: 'Windshield Damage',
-      status: 'Pending Review',
-      location: 'Penang',
-      vehicleModel: 'Nissan X-Trail 2020',
-      vehicleRegistration: 'PJY 5678',
-      claimAmount: 1200.00,
-      policyNumber: 'POL-23456789',
-    },
-    {
-      id: 'CLM006',
-      date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      type: 'Flood Damage',
-      status: 'Pending Review',
-      location: 'Kuala Lumpur',
-      vehicleModel: 'Honda CR-V 2019',
-      vehicleRegistration: 'WXC 9012',
-      claimAmount: 8900.00,
-      policyNumber: 'POL-34567890',
-    },
-  ];
+
+  const refreshClaims = async () => {
+    setLoadingClaims(true);
+    try {
+      const [claimResult, coverageResult] = await Promise.all([
+        getAllClaims(),
+        getAllCoverages(),
+      ]);
+      const coverageById = new Map(coverageResult.map((coverage) => [coverage.coverageId, coverage]));
+      const claimsWithCoverage = claimResult.map((claim) => ({
+        ...claim,
+        coverage: claim.coverage || coverageById.get(claim.coverageId) || null,
+      }));
+
+      setCoverages(coverageResult);
+      setClaims(claimsWithCoverage);
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.title ||
+          'Unable to load dashboard claims.'
+      );
+    } finally {
+      setLoadingClaims(false);
+    }
+  };
+
+  useEffect(() => {
+    refreshClaims();
+  }, []);
+
+  const totalClaims = claims.length;
+  const totalCoverages = coverages.length;
+  const pendingClaims = useMemo(
+    () => claims.filter((claim) => ['Pending Manual Review', 'Pending Customer Action', 'Customer Responded'].includes(claim.status)),
+    [claims]
+  );
+  const approvedClaims = useMemo(() => claims.filter((claim) => claim.status === 'Approved'), [claims]);
+  const suspiciousClaims = useMemo(() => {
+    return claims.filter((claim) => {
+      const reasons = claim.validationResult?.reasons || [];
+      return reasons.some((reason) =>
+        /ocr failed|confidence is too low|missing|does not match/i.test(reason)
+      );
+    });
+  }, [claims]);
 
   const buildOfficerNavItem = ({ icon, title, subtitle, index, isSelected }) => (
     <div 
@@ -111,7 +126,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
           <Card>
             <Statistic
               title="Claims Pending Review"
-              value={12}
+              value={pendingClaims.length}
               valueStyle={{ color: '#FF6600' }}
               prefix={<ClockCircleOutlined />}
             />
@@ -121,7 +136,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
           <Card>
             <Statistic
               title="Flagged for Manual Review"
-              value={3}
+              value={pendingClaims.length}
               valueStyle={{ color: '#E53E3E' }}
               prefix={<FlagOutlined />}
             />
@@ -131,7 +146,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
           <Card>
             <Statistic
               title="Approved This Week"
-              value={28}
+              value={approvedClaims.length}
               valueStyle={{ color: '#4CAF50' }}
               prefix={<CheckCircleOutlined />}
             />
@@ -141,15 +156,24 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
           <Card>
             <Statistic
               title="Suspicious Claims"
-              value={5}
+              value={suspiciousClaims.length}
               valueStyle={{ color: '#FF9800' }}
               prefix={<SecurityScanOutlined />}
             />
           </Card>
         </Col>
       </Row>
-      
-      {/* Additional dashboard content would go here */}
+
+      <Card style={{ marginTop: 24, borderRadius: 16 }}>
+        <Row gutter={[16, 16]}>
+          <Col xs={24} md={12}>
+            <Statistic title="Total Claims In System" value={totalClaims} />
+          </Col>
+          <Col xs={24} md={12}>
+            <Statistic title="Total Coverages In System" value={totalCoverages} />
+          </Col>
+        </Row>
+      </Card>
     </div>
   );
 
@@ -158,15 +182,15 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       case 0:
         return buildDashboardView();
       case 1:
-        return <ManualReviewQueue />;
+        return <ManualReviewQueue claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
       case 2:
-        return <PendingClaimsScreen pendingClaims={pendingClaims} />;
+        return <PendingClaimsScreen claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
       case 3:
-        return <ApprovedClaimsScreen />;
+        return <ApprovedClaimsScreen claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
       case 4:
         return <SuspiciousClaimsReview />;
       case 5:
-        return <AllClaimsOfficerScreen />;
+        return <AllClaimsOfficerScreen claims={claims} loading={loadingClaims} onRefresh={refreshClaims} onClaimsChanged={refreshClaims} />;
       case 6:
         return <ReportsScreen />;
       case 7:
@@ -175,6 +199,13 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
         return <NotificationAuditScreen />;
       case 9:
         return <PaymentMonitoringDashboard />;
+      case 10:
+        return (
+          <ProfileScreen
+            heading="Officer Profile"
+            description="Review your officer or admin account details."
+          />
+        );
       default:
         return (
           <div style={{ padding: 24, textAlign: 'center' }}>
@@ -332,6 +363,14 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
             subtitle: 'Track claim payments',
             index: 9,
             isSelected: selectedIndex === 9
+          })}
+
+          {buildOfficerNavItem({
+            icon: <UserOutlined />,
+            title: 'Profile',
+            subtitle: 'View your account details',
+            index: 10,
+            isSelected: selectedIndex === 10
           })}
         </div>
         

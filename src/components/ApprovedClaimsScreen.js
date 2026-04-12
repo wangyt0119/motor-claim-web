@@ -1,34 +1,14 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import { Card, Typography, Table, Tag, Button, Space, Empty } from 'antd';
-import { EyeOutlined, FileDoneOutlined } from '@ant-design/icons';
+import { EyeOutlined } from '@ant-design/icons';
+import moment from 'moment';
+import ClaimWorkflowDrawer from './ClaimWorkflowDrawer';
 
 const { Title } = Typography;
 
-function ApprovedClaimsScreen() {
-  // Sample approved claims data
-  const approvedClaims = [
-    {
-      id: 'CLM004',
-      date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-      type: 'Vehicle Collision',
-      status: 'Approved',
-      vehicleModel: 'Perodua Myvi 2018',
-      vehicleRegistration: 'JKL 3456',
-      claimAmount: 3200.00,
-      paymentStatus: 'Pending',
-    },
-    {
-      id: 'CLM005',
-      date: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-      type: 'Windscreen Damage',
-      status: 'Approved',
-      vehicleModel: 'Honda City 2021',
-      vehicleRegistration: 'MNO 7890',
-      claimAmount: 1500.00,
-      paymentStatus: 'Processed',
-      paymentReference: 'PAY-12345678',
-    },
-  ];
+function ApprovedClaimsScreen({ claims = [], loading = false, onClaimsChanged }) {
+  const [selectedClaim, setSelectedClaim] = useState(null);
+  const approvedClaims = useMemo(() => claims.filter((claim) => claim.status === 'Approved'), [claims]);
 
   const columns = [
     {
@@ -40,7 +20,7 @@ function ApprovedClaimsScreen() {
       title: 'Date',
       dataIndex: 'date',
       key: 'date',
-      render: (date) => date.toLocaleDateString(),
+      render: (date) => moment(date).format('DD MMM YYYY'),
     },
     {
       title: 'Type',
@@ -48,43 +28,30 @@ function ApprovedClaimsScreen() {
       key: 'type',
     },
     {
-      title: 'Vehicle',
-      key: 'vehicle',
-      render: (_, record) => (
-        <span>{record.vehicleModel} ({record.vehicleRegistration})</span>
-      ),
+      title: 'Coverage ID',
+      dataIndex: 'coverageId',
+      key: 'coverageId',
+      render: (value) => value || 'Not available',
     },
     {
-      title: 'Amount (RM)',
-      dataIndex: 'claimAmount',
-      key: 'claimAmount',
-      render: (amount) => amount.toFixed(2),
+      title: 'Claim Status',
+      dataIndex: 'status',
+      key: 'status',
+      render: (status) => <Tag color="success">{status || 'Approved'}</Tag>,
     },
     {
-      title: 'Payment Status',
-      dataIndex: 'paymentStatus',
-      key: 'paymentStatus',
-      render: (status) => {
-        let color = 'default';
-        if (status === 'Pending') color = 'warning';
-        if (status === 'Processed') color = 'success';
-        
-        return <Tag color={color}>{status}</Tag>;
-      },
+      title: 'STP Status',
+      dataIndex: 'stpStatus',
+      key: 'stpStatus',
+      render: (status) => <Tag color="green">{status || 'AutoApproved'}</Tag>,
     },
     {
       title: 'Actions',
       key: 'actions',
       render: (_, record) => (
         <Space>
-          <Button icon={<EyeOutlined />} size="small">View</Button>
-          <Button 
-            type="primary" 
-            icon={<FileDoneOutlined />} 
-            size="small"
-            disabled={record.paymentStatus === 'Processed'}
-          >
-            {record.paymentStatus === 'Processed' ? 'Paid' : 'Process Payment'}
+          <Button icon={<EyeOutlined />} size="small" onClick={() => setSelectedClaim(record)}>
+            View
           </Button>
         </Space>
       ),
@@ -100,8 +67,19 @@ function ApprovedClaimsScreen() {
           columns={columns} 
           rowKey="id"
           pagination={{ pageSize: 10 }}
+          loading={loading}
+          locale={{
+            emptyText: <Empty description="No approved STP claims available" />,
+          }}
         />
       </Card>
+
+      <ClaimWorkflowDrawer
+        claim={selectedClaim}
+        open={Boolean(selectedClaim)}
+        onClose={() => setSelectedClaim(null)}
+        onWorkflowUpdated={onClaimsChanged}
+      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Layout, Menu, Avatar, Typography, Divider, Button, message } from 'antd';
 import { 
+  AppstoreOutlined,
   PlusCircleOutlined, 
   LineChartOutlined, 
   HistoryOutlined, 
@@ -10,14 +11,18 @@ import {
   CustomerServiceOutlined,
   FileTextOutlined,
   LogoutOutlined,
-  UserOutlined
+  UserOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import SubmitClaimScreen from './SubmitClaimScreen';
-import TrackClaimScreen from './TrackClaimScreen';
+import CustomerClaimTracker from './CustomerClaimTracker';
 import ClaimHistoryScreen from './ClaimHistoryScreen';
 import NotificationHistoryScreen from './NotificationHistoryScreen';
 import ClaimPaymentsScreen from './ClaimPaymentsScreen';
+import PanelWorkshopListScreen from './PanelWorkshopListScreen';
+import CustomerDashboardScreen from './CustomerDashboardScreen';
+import ProfileScreen from './ProfileScreen';
 import '../styles/MainScreen.css';
 import { getMyClaims } from '../services/claimService';
 import { getMyCoverages } from '../services/coverageService';
@@ -27,44 +32,47 @@ const { Text } = Typography;
 
 function MainScreen({ onSignOut, currentUser }) {
   const [claims, setClaims] = useState([]);
-  const [selectedKey, setSelectedKey] = useState('submit');
+  const [coverages, setCoverages] = useState([]);
+  const [selectedKey, setSelectedKey] = useState('dashboard');
   const navigate = useNavigate();
   const location = useLocation();
 
   useEffect(() => {
-    const routeKey = location.pathname.split('/')[2] || 'submit';
+    const routeKey = location.pathname.split('/')[2] || 'dashboard';
     setSelectedKey(routeKey);
   }, [location.pathname]);
 
+  const refreshClaims = async () => {
+    try {
+      const [claimList, coverageList] = await Promise.all([getMyClaims(), getMyCoverages()]);
+      const coverageById = new Map(
+        coverageList.map((coverage) => [coverage.coverageId, coverage])
+      );
+      setCoverages(coverageList);
+
+      setClaims(
+        claimList.map((claim) => {
+          const relatedCoverage = coverageById.get(claim.coverageId);
+
+          return {
+            ...claim,
+            vehicleRegistration: relatedCoverage?.vehicleNo || claim.vehicleRegistration,
+            vehicleModel: relatedCoverage?.coverageType || claim.vehicleModel,
+            relatedCoverage: relatedCoverage || null,
+          };
+        })
+      );
+    } catch (error) {
+      message.error(
+        error?.response?.data?.message ||
+          error?.response?.data?.title ||
+          'Unable to load your claims from the backend.'
+      );
+    }
+  };
+
   useEffect(() => {
-    const loadClaims = async () => {
-      try {
-        const [claimList, coverageList] = await Promise.all([getMyClaims(), getMyCoverages()]);
-        const coverageById = new Map(
-          coverageList.map((coverage) => [coverage.coverageId, coverage])
-        );
-
-        setClaims(
-          claimList.map((claim) => {
-            const relatedCoverage = coverageById.get(claim.coverageId);
-
-            return {
-              ...claim,
-              vehicleRegistration: relatedCoverage?.vehicleNo || claim.vehicleRegistration,
-              vehicleModel: relatedCoverage?.coverageType || claim.vehicleModel,
-            };
-          })
-        );
-      } catch (error) {
-        message.error(
-          error?.response?.data?.message ||
-            error?.response?.data?.title ||
-            'Unable to load your claims from the backend.'
-        );
-      }
-    };
-
-    loadClaims();
+    refreshClaims();
   }, []);
 
   const handleMenuClick = (key) => {
@@ -126,6 +134,15 @@ function MainScreen({ onSignOut, currentUser }) {
             selectedKeys={[selectedKey]}
             className="main-menu"
           >
+            <Menu.Item
+              key="dashboard"
+              icon={<AppstoreOutlined />}
+              onClick={() => handleMenuClick('dashboard')}
+            >
+              <span>Dashboard</span>
+              <div className="menu-subtitle">Overview & quick actions</div>
+            </Menu.Item>
+
             <Menu.Item 
               key="submit" 
               icon={<PlusCircleOutlined />}
@@ -170,6 +187,24 @@ function MainScreen({ onSignOut, currentUser }) {
               <span>My Claim Payments</span>
               <div className="menu-subtitle">Track payment status</div>
             </Menu.Item>
+
+            <Menu.Item
+              key="panel-workshop"
+              icon={<ToolOutlined />}
+              onClick={() => handleMenuClick('panel-workshop')}
+            >
+              <span>Panel Workshop</span>
+              <div className="menu-subtitle">Find approved workshops</div>
+            </Menu.Item>
+
+            <Menu.Item
+              key="profile"
+              icon={<UserOutlined />}
+              onClick={() => handleMenuClick('profile')}
+            >
+              <span>Profile</span>
+              <div className="menu-subtitle">View your account details</div>
+            </Menu.Item>
           </Menu>
           
           <Divider plain orientation="left">
@@ -205,13 +240,34 @@ function MainScreen({ onSignOut, currentUser }) {
       
       <Content className="main-content">
         <Routes>
-          <Route path="/" element={<Navigate to="/customer/submit" replace />} />
+          <Route path="/" element={<Navigate to="/customer/dashboard" replace />} />
+          <Route
+            path="dashboard"
+            element={
+              <CustomerDashboardScreen
+                currentUser={currentUser}
+                claims={claims}
+                coverages={coverages}
+                onOpenSection={handleMenuClick}
+              />
+            }
+          />
           <Route path="submit" element={<SubmitClaimScreen onSubmit={addNewClaim} />} />
-          <Route path="track" element={<TrackClaimScreen claims={claims} />} />
-          <Route path="history" element={<ClaimHistoryScreen claims={claims} />} />
+          <Route path="track" element={<CustomerClaimTracker claims={claims} onClaimsChanged={refreshClaims} />} />
+          <Route path="history" element={<ClaimHistoryScreen claims={claims} coverages={coverages} />} />
           <Route path="notifications" element={<NotificationHistoryScreen />} />
           <Route path="payments" element={<ClaimPaymentsScreen claims={claims} />} />
-          <Route path="*" element={<Navigate to="/customer/submit" replace />} />
+          <Route path="panel-workshop" element={<PanelWorkshopListScreen />} />
+          <Route
+            path="profile"
+            element={
+              <ProfileScreen
+                heading="My Profile"
+                description="Review your customer account details."
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/customer/dashboard" replace />} />
         </Routes>
       </Content>
     </Layout>

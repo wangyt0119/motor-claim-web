@@ -21,3 +21,29 @@ export async function createClaim(payload) {
 
   return mapClaimFromApi(data);
 }
+
+export async function approveClaim(claimId, note) {
+  const response = await apiClient.post(`/Claim/${claimId}/approve`, { note: note || null });
+  return mapClaimFromApi(response.data?.data ?? response.data ?? {});
+}
+
+export async function rejectClaim(claimId, note) {
+  const response = await apiClient.post(`/Claim/${claimId}/reject`, { note: note || null });
+  return mapClaimFromApi(response.data?.data ?? response.data ?? {});
+}
+
+export async function requestClaimInfo(claimId, { requestedItems, note }) {
+  const response = await apiClient.post(`/Claim/${claimId}/request-info`, {
+    requestedItems,
+    note: note || null,
+  });
+  return mapClaimFromApi(response.data?.data ?? response.data ?? {});
+}
+
+export async function submitCustomerClaimResponse(claimId, { responseNote, responseDocuments }) {
+  const response = await apiClient.post(`/Claim/${claimId}/customer-response`, {
+    responseNote: responseNote || null,
+    responseDocuments: responseDocuments || [],
+  });
+  return mapClaimFromApi(response.data?.data ?? response.data ?? {});
+}

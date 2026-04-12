@@ -11,7 +11,6 @@ import {
   ArrowLeftOutlined, 
   ArrowRightOutlined, 
   CheckOutlined,
-  InboxOutlined,
   CheckCircleOutlined,
   FileTextOutlined,
   FolderOutlined
@@ -40,8 +39,7 @@ function SubmitClaimScreen({ onSubmit }) {
 
   const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024;
 
-  const vehicleClaimDocumentSections = {
-    'Vehicle Damages': [
+  const vehicleDamageDocumentSections = [
       {
         title: 'Core Documents',
         documents: [
@@ -72,24 +70,7 @@ function SubmitClaimScreen({ onSubmit }) {
           { key: 'damageRearRight', label: 'Vehicle damages (Rear right)' }
         ]
       }
-    ],
-    'Vehicle Got Stolen': [
-      {
-        title: 'Core Documents',
-        documents: [
-          { key: 'policeReport', label: 'Police report' },
-          { key: 'registrationCard', label: 'Registration card / Vehicle ownership certificate' }
-        ]
-      },
-      {
-        title: 'NRIC/Passport/Army/Police ID',
-        documents: [
-          { key: 'idFront', label: 'NRIC/Passport/Army/Police ID (Front)' },
-          { key: 'idBack', label: 'NRIC/Passport/Army/Police ID (Back)' }
-        ]
-      }
-    ]
-  };
+  ];
 
   useEffect(() => {
     const loadCoverages = async () => {
@@ -112,9 +93,8 @@ function SubmitClaimScreen({ onSubmit }) {
     loadCoverages();
   }, []);
 
-  const getRequiredDocuments = (claimType) => {
-    const sections = vehicleClaimDocumentSections[claimType] || [];
-    return sections.flatMap((section) => section.documents);
+  const getRequiredDocuments = () => {
+    return vehicleDamageDocumentSections.flatMap((section) => section.documents);
   };
 
   const getTotalUploadSize = (filesMap) => {
@@ -176,11 +156,6 @@ function SubmitClaimScreen({ onSubmit }) {
           }
           return true;
         case 2: {
-          const vehicleClaimType = form.getFieldValue('vehicleClaimType');
-          if (!vehicleClaimType) {
-            message.error('Please select a vehicle claim type');
-            return false;
-          }
           return true;
         }
         case 3: {
@@ -188,8 +163,7 @@ function SubmitClaimScreen({ onSubmit }) {
             message.error('Please describe the incident in detail');
             return false;
           }
-          const vehicleClaimType = form.getFieldValue('vehicleClaimType');
-          const requiredDocs = getRequiredDocuments(vehicleClaimType);
+          const requiredDocs = getRequiredDocuments();
           const missingDoc = requiredDocs.find((doc) => !(documentFiles[doc.key] && documentFiles[doc.key].length > 0));
           if (missingDoc) {
             message.error(`Please upload: ${missingDoc.label}`);
@@ -245,11 +219,10 @@ function SubmitClaimScreen({ onSubmit }) {
         return;
       }
 
-      const values = await form.validateFields();
+      await form.validateFields();
       setSubmitting(true);
 
       const documentPayload = await getDocumentPayload();
-      const motorClaimType = values.vehicleClaimType === 'Vehicle Damages' ? 1 : 2;
       const incidentDateIso = incidentDateString ? `${incidentDateString}T00:00:00` : null;
 
       if (!incidentDateIso) {
@@ -260,7 +233,7 @@ function SubmitClaimScreen({ onSubmit }) {
         coverageId: selectedCoverage,
         incidentDate: incidentDateIso,
         allClaimType: 1,
-        motorClaimType,
+        motorClaimType: 1,
         incidentDescription: incidentDescription.trim(),
         policeReportDocument: documentPayload.policeReport ?? null,
         vehicleOwnershipCertificateDocument: documentPayload.registrationCard ?? null,
@@ -281,7 +254,7 @@ function SubmitClaimScreen({ onSubmit }) {
 
       setSubmittedClaimData({
         ...createdClaim,
-        type: values.vehicleClaimType,
+        type: 'Vehicle Damages',
         vehicleRegistration:
           coverageOptions.find((coverage) => coverage.coverageId === selectedCoverage)?.vehicleNo ||
           createdClaim.vehicleRegistration,
@@ -339,7 +312,7 @@ function SubmitClaimScreen({ onSubmit }) {
 
         {buildStepIndicatorItem({
           number: 3,
-          title: "Vehicle Claim Type",
+          title: "Supporting Documents",
           isActive: currentStep === 2,
           isCompleted: currentStep > 2
         })}
@@ -350,20 +323,9 @@ function SubmitClaimScreen({ onSubmit }) {
 
         {buildStepIndicatorItem({
           number: 4,
-          title: "Supporting Documents",
+          title: "Review & Submit",
           isActive: currentStep === 3,
           isCompleted: currentStep > 3
-        })}
-        
-        {buildStepConnector({
-          isCompleted: currentStep > 3
-        })}
-        
-        {buildStepIndicatorItem({
-          number: 5,
-          title: "Review & Submit",
-          isActive: currentStep === 4,
-          isCompleted: currentStep > 4
         })}
       </div>
     );
@@ -551,111 +513,10 @@ function SubmitClaimScreen({ onSubmit }) {
     );
   };
 
-  // Build vehicle claim type step
-  const buildVehicleClaimTypeStep = () => {
-    const selectedType = form.getFieldValue('vehicleClaimType');
-
-    const optionCardStyle = (isSelected) => ({
-      borderRadius: 20,
-      border: isSelected ? '2px solid #FF6600' : '1px solid #d9d9d9',
-      cursor: 'pointer',
-      minHeight: 320,
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      boxShadow: isSelected ? '0 6px 16px rgba(255,102,0,0.15)' : '0 2px 8px rgba(0,0,0,0.04)',
-      transition: 'all 0.2s ease'
-    });
-
-    const iconWrapStyle = {
-      width: 96,
-      height: 96,
-      borderRadius: '50%',
-      backgroundColor: '#FFF3E0',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      margin: '0 auto 16px'
-    };
-
-    return (
-      <div>
-        <Card
-          style={{
-            borderRadius: 12,
-            boxShadow: '0 2px 5px rgba(0,0,0,0.05)'
-          }}
-        >
-          <Title level={4} style={{ marginBottom: 8 }}>
-            Sorry to hear that. Please tell us what happened?
-          </Title>
-          <Text type="secondary">
-            Choose one vehicle claim type to continue
-          </Text>
-
-          <div style={{ marginTop: 24 }}>
-            <Row gutter={[20, 20]}>
-              <Col xs={24} md={12}>
-                <Card
-                  hoverable
-                  style={optionCardStyle(selectedType === 'Vehicle Damages')}
-                  styles={{ body: { width: '100%' } }}
-                  onClick={() => {
-                    setDocumentFiles({});
-                    form.setFieldsValue({ vehicleClaimType: 'Vehicle Damages' });
-                  }}
-                >
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={iconWrapStyle}>
-                      <CarOutlined style={{ fontSize: 40, color: '#FFB300' }} />
-                    </div>
-                    <Title level={3} style={{ margin: 0 }}>
-                      Vehicle
-                      <br />
-                      Damages
-                    </Title>
-                  </div>
-                </Card>
-              </Col>
-
-              <Col xs={24} md={12}>
-                <Card
-                  hoverable
-                  style={optionCardStyle(selectedType === 'Vehicle Got Stolen')}
-                  styles={{ body: { width: '100%' } }}
-                  onClick={() => {
-                    setDocumentFiles({});
-                    form.setFieldsValue({ vehicleClaimType: 'Vehicle Got Stolen' });
-                  }}
-                >
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={iconWrapStyle}>
-                      <InboxOutlined style={{ fontSize: 40, color: '#333' }} />
-                    </div>
-                    <Title level={3} style={{ margin: 0 }}>
-                      Vehicle
-                      <br />
-                      Got Stolen
-                    </Title>
-                  </div>
-                </Card>
-              </Col>
-            </Row>
-
-            <Form.Item name="vehicleClaimType" hidden>
-              <Input />
-            </Form.Item>
-          </div>
-        </Card>
-      </div>
-    );
-  };
-
   // Build documents step
   const buildDocumentsStep = () => {
-    const selectedType = form.getFieldValue('vehicleClaimType');
-    const documentSections = vehicleClaimDocumentSections[selectedType] || [];
-    const requiredDocs = documentSections.flatMap((section) => section.documents);
+    const documentSections = vehicleDamageDocumentSections;
+    const requiredDocs = getRequiredDocuments();
     const uploadedCount = requiredDocs.filter((doc) => (documentFiles[doc.key] || []).length > 0).length;
     const totalSizeMB = (getTotalUploadSize(documentFiles) / (1024 * 1024)).toFixed(2);
 
@@ -819,8 +680,7 @@ function SubmitClaimScreen({ onSubmit }) {
   // Build review step
   const buildReviewStep = () => {
     // Get the latest form values directly from form instance
-    const formValues = form.getFieldsValue(true);
-    const requiredDocs = getRequiredDocuments(formValues.vehicleClaimType);
+    const requiredDocs = getRequiredDocuments();
     const selectedCoverageDetails = coverageOptions.find((coverage) =>
       coverage.coverageId === selectedCoverage
     );
@@ -871,19 +731,6 @@ function SubmitClaimScreen({ onSubmit }) {
             <Divider style={{ margin: '16px 0' }} />
             
             {buildReviewSection({
-              title: 'Vehicle Claim Type',
-              icon: <CheckCircleOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
-              items: [
-                {
-                  label: 'Vehicle Claim Type',
-                  value: formValues.vehicleClaimType || 'Not provided'
-                }
-              ]
-            })}
-
-            <Divider style={{ margin: '16px 0' }} />
-
-            {buildReviewSection({
               title: 'Supporting Documents',
               icon: <FolderOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
               items: requiredDocs.map((doc) => ({
@@ -920,10 +767,8 @@ function SubmitClaimScreen({ onSubmit }) {
       case 1:
         return buildSelectCoverageStep();
       case 2:
-        return buildVehicleClaimTypeStep();
-      case 3:
         return buildDocumentsStep();
-      case 4:
+      case 3:
         return buildReviewStep();
       default:
         return null;
@@ -1044,14 +889,7 @@ function SubmitClaimScreen({ onSubmit }) {
           layout="vertical"
           initialValues={{
             incidentDate: null,
-            incidentTime: null,
-            accidentType: undefined,
-            vehicleClaimType: undefined,
             incidentDescription: '',
-            location: '',
-            vehicleRegistration: '',
-            vehicleMake: undefined,
-            vehicleModel: '',
             termsAgreed: false
           }}
         >
@@ -1073,12 +911,12 @@ function SubmitClaimScreen({ onSubmit }) {
         
         <Button 
           type="primary" 
-          icon={currentStep < 4 ? <ArrowRightOutlined /> : <CheckOutlined />}
-          onClick={currentStep < 4 ? handleNext : handleSubmit}
+          icon={currentStep < 3 ? <ArrowRightOutlined /> : <CheckOutlined />}
+          onClick={currentStep < 3 ? handleNext : handleSubmit}
           style={{ backgroundColor: '#FF6600', borderColor: '#FF6600' }}
           loading={submitting}
         >
-          {currentStep < 4 ? 'Next' : 'Submit Claim'}
+          {currentStep < 3 ? 'Next' : 'Submit Claim'}
         </Button>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Card, Button, Typography, Row, Col, Space } from 'antd';
-import { UserOutlined, TeamOutlined, ArrowRightOutlined } from '@ant-design/icons';
+import { UserOutlined, TeamOutlined, ToolOutlined, SafetyCertificateOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import '../styles/AppSelector.css';
 
@@ -25,6 +25,24 @@ function AppSelector() {
     'Notification Audit Log',
     'Validation Process Tracking',
     'Advanced Analytics & Reports',
+  ];
+
+  const workshopFeatures = [
+    'View Approved Assigned Claims',
+    'See Workshop Appointment Date & Time',
+    'Open Uploaded Claim Documents',
+    'Submit repair quotation and documents',
+    'Track incoming repair jobs',
+    'Use Workshop-Specific Login',
+  ];
+
+  const adminFeatures = [
+    'Monitor real-time system activities',
+    'Review API and user action logs',
+    'Filter and export audit-ready monitoring reports',
+    'Track request success and failure patterns',
+    'Watch module usage across the platform',
+    'Manage your admin profile securely',
   ];
 
   const FeatureList = ({ features, color }) => (
@@ -104,8 +122,8 @@ function AppSelector() {
           <div className="orange-divider"></div>
         </Card>
         
-        <Row gutter={24} className="selection-cards-row">
-          <Col xs={24} lg={12}>
+        <Row gutter={[24, 24]} className="selection-cards-row">
+          <Col xs={24} md={12}>
             <SelectionCard 
               title="Customer Portal"
               subtitle="Manage your motor insurance claims"
@@ -117,7 +135,7 @@ function AppSelector() {
             />
           </Col>
           
-          <Col xs={24} lg={12}>
+          <Col xs={24} md={12}>
             <SelectionCard 
               title="Officer Portal"
               subtitle="Comprehensive claims management"
@@ -126,6 +144,30 @@ function AppSelector() {
               color="#FF6600"
               features={officerFeatures}
               onClick={() => navigate('/officer/auth')}
+            />
+          </Col>
+
+          <Col xs={24} md={12}>
+            <SelectionCard
+              title="Admin Portal"
+              subtitle="System monitoring and audit oversight"
+              description="Monitor platform usage, inspect system logs, review request health, and export audit data for compliance and operational support."
+              icon={<SafetyCertificateOutlined />}
+              color="#B45309"
+              features={adminFeatures}
+              onClick={() => navigate('/admin/auth')}
+            />
+          </Col>
+
+          <Col xs={24} md={12}>
+            <SelectionCard
+              title="Panel Workshop"
+              subtitle="Handle approved workshop appointments"
+              description="Open assigned approved claims, review uploaded evidence, and prepare for booked inspection or repair appointments."
+              icon={<ToolOutlined />}
+              color="#0F766E"
+              features={workshopFeatures}
+              onClick={() => navigate('/panel-workshop/auth')}
             />
           </Col>
         </Row>

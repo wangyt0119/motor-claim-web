@@ -1,98 +1,47 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { 
   Card, Typography, Input, Select, Row, Col, 
-  Tag, Button, Space, Alert, Empty, Modal, message
+  Tag, Button, Empty
 } from 'antd';
 import { 
   FlagOutlined, 
   SearchOutlined, 
   EyeOutlined, 
-  CheckOutlined,
-  CarOutlined,
-  EnvironmentOutlined,
-  DollarOutlined,
-  FileTextOutlined
 } from '@ant-design/icons';
-import { useNavigate } from 'react-router-dom';
+import moment from 'moment';
+import ClaimWorkflowDrawer from './ClaimWorkflowDrawer';
 
 const { Title, Text } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 
-function ManualReviewQueue() {
-  const navigate = useNavigate();
+function ManualReviewQueue({ claims = [], onClaimsChanged }) {
   const [selectedFilter, setSelectedFilter] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // Sample flagged claims data
-  const [flaggedClaims, setFlaggedClaims] = useState([
-    {
-      claimData: {
-        id: 'CLM001',
-        date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        type: 'Vehicle Collision',
-        status: 'Flagged for Review',
-        location: 'Kuala Lumpur',
-        vehicleModel: 'Honda Civic 2020',
-        vehicleRegistration: 'WXY 1234',
-        claimAmount: 15800.00,
-        policyNumber: 'POL-78901234',
-        notes: ['High claim amount', 'Multiple previous claims'],
-      },
-      flagReason: 'High Claim Amount',
-      flagDetails: 'Claim amount exceeds RM15,000 threshold',
-      priority: 'High',
-      flaggedDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-      assignedOfficer: 'Sarah Johnson',
-    },
-    {
-      claimData: {
-        id: 'CLM002',
-        date: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        type: 'Theft',
-        status: 'Flagged for Review',
-        location: 'Petaling Jaya',
-        vehicleModel: 'Toyota Camry 2019',
-        vehicleRegistration: 'ABC 5678',
-        claimAmount: 8500.00,
-        policyNumber: 'POL-56789012',
-        notes: ['Suspicious circumstances', 'Late reporting'],
-      },
-      flagReason: 'Suspicious Activity',
-      flagDetails: 'Claim reported 7 days after incident',
-      priority: 'Medium',
-      flaggedDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-      assignedOfficer: 'Sarah Johnson',
-    },
-    {
-      claimData: {
-        id: 'CLM003',
-        date: new Date(Date.now() - 6 * 60 * 60 * 1000),
-        type: 'Fire Damage',
-        status: 'Flagged for Review',
-        location: 'Shah Alam',
-        vehicleModel: 'Proton X70 2021',
-        vehicleRegistration: 'DEF 9012',
-        claimAmount: 12900.00,
-        policyNumber: 'POL-34567890',
-        notes: ['Missing documentation', 'Incomplete fire report'],
-      },
-      flagReason: 'Missing Documentation',
-      flagDetails: 'Fire department report incomplete',
-      priority: 'Medium',
-      flaggedDate: new Date(Date.now() - 6 * 60 * 60 * 1000),
-      assignedOfficer: 'Sarah Johnson',
-    },
-  ]);
-
   const [filteredClaims, setFilteredClaims] = useState([]);
+  const [selectedClaim, setSelectedClaim] = useState(null);
+
+  const flaggedClaims = useMemo(() => {
+    return claims
+      .filter((claim) => ['Pending Manual Review', 'Customer Responded'].includes(claim.status))
+      .map((claim) => {
+        const reasons = claim.validationResult?.reasons || [];
+        return {
+          ...claim,
+          priority: claim.validationResult?.isDocumentComplete === false ? 'High' : 'Medium',
+          flagReason: reasons[0] || 'Needs manual review',
+          flagDetails: reasons.join(' ') || 'Backend marked this claim for manual review.',
+          flaggedDate: claim.date,
+        };
+      });
+  }, [claims]);
 
   useEffect(() => {
     let filtered = flaggedClaims.filter(claim => {
       const matchesFilter = selectedFilter === 'All' || claim.priority === selectedFilter;
       const matchesSearch = !searchQuery || 
-                          claim.claimData.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          claim.claimData.vehicleRegistration.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          claim.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                          String(claim.coverageId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
                           claim.flagReason.toLowerCase().includes(searchQuery.toLowerCase());
       return matchesFilter && matchesSearch;
     });
@@ -105,7 +54,7 @@ function ManualReviewQueue() {
     });
     
     setFilteredClaims(filtered);
-  }, [selectedFilter, searchQuery, flaggedClaims]);
+  }, [flaggedClaims, searchQuery, selectedFilter]);
 
   const getPriorityValue = (priority) => {
     switch (priority) {
@@ -139,37 +88,6 @@ function ManualReviewQueue() {
     } else {
       return `${diffMins}m ago`;
     }
-  };
-
-  const navigateToClaimDetail = (claim) => {
-    // In a real app, you would use React Router to navigate
-    console.log('Navigate to claim detail:', claim);
-    // navigate(`/claim-detail/${claim.claimData.id}`, { state: { flaggedClaim: claim } });
-  };
-
-  const quickApprove = (claim) => {
-    Modal.confirm({
-      title: 'Quick Approve',
-      content: `Are you sure you want to approve claim ${claim.claimData.id}?`,
-      okText: 'Approve',
-      okButtonProps: {
-        style: { backgroundColor: '#4CAF50', borderColor: '#4CAF50' }
-      },
-      cancelText: 'Cancel',
-      onOk: () => {
-        // Update claim status
-        const updatedClaims = flaggedClaims.filter(c => c.claimData.id !== claim.claimData.id);
-        setFlaggedClaims(updatedClaims);
-        
-        // Show success message
-        message.success({
-          content: `Claim ${claim.claimData.id} approved successfully`,
-          style: {
-            marginTop: '20vh',
-          },
-        });
-      }
-    });
   };
 
   const buildHeader = () => (
@@ -297,7 +215,7 @@ function ManualReviewQueue() {
     return (
       <Card 
         hoverable
-        onClick={() => navigateToClaimDetail(claim)}
+        onClick={() => setSelectedClaim(claim)}
         style={{ 
           marginBottom: 16, 
           borderRadius: 12,
@@ -321,7 +239,7 @@ function ManualReviewQueue() {
             >
               {claim.priority}
             </Tag>
-            <Title level={4} style={{ margin: '0 0 0 12px' }}>{claim.claimData.id}</Title>
+            <Title level={4} style={{ margin: '0 0 0 12px' }}>{claim.id}</Title>
           </div>
           <Text type="secondary" style={{ fontSize: 12 }}>
             {getTimeSinceFlagged(claim.flaggedDate)}
@@ -354,27 +272,27 @@ function ManualReviewQueue() {
         
         <Row gutter={24} style={{ marginBottom: 16 }}>
           <Col span={6}>
-            {renderDetailItem('Vehicle', `${claim.claimData.vehicleModel}\n${claim.claimData.vehicleRegistration}`)}
+            {renderDetailItem('Coverage', claim.coverageId || 'Not available')}
           </Col>
           <Col span={6}>
-            {renderDetailItem('Type', claim.claimData.type)}
+            {renderDetailItem('Type', claim.type)}
           </Col>
           <Col span={6}>
-            {renderDetailItem('Amount', `RM ${claim.claimData.claimAmount.toFixed(2)}`)}
+            {renderDetailItem('STP Status', claim.stpStatus || 'Manual Review')}
           </Col>
           <Col span={6}>
-            {renderDetailItem('Location', claim.claimData.location)}
+            {renderDetailItem('Submitted', moment(claim.date).format('DD MMM YYYY'))}
           </Col>
         </Row>
         
         <Row gutter={12}>
-          <Col span={12}>
+          <Col span={24}>
             <Button 
               block
               icon={<EyeOutlined />} 
               onClick={(e) => {
                 e.stopPropagation();
-                navigateToClaimDetail(claim);
+                setSelectedClaim(claim);
               }}
               style={{ 
                 borderColor: '#FF6600', 
@@ -383,24 +301,6 @@ function ManualReviewQueue() {
               }}
             >
               Review Details
-            </Button>
-          </Col>
-          <Col span={12}>
-            <Button 
-              type="primary" 
-              block
-              icon={<CheckOutlined />} 
-              onClick={(e) => {
-                e.stopPropagation();
-                quickApprove(claim);
-              }}
-              style={{ 
-                backgroundColor: '#4CAF50', 
-                borderColor: '#4CAF50',
-                height: 40
-              }}
-            >
-              Quick Approve
             </Button>
           </Col>
         </Row>
@@ -438,6 +338,13 @@ function ManualReviewQueue() {
       </div>
       {buildStatsRow()}
       {buildClaimsList()}
+
+      <ClaimWorkflowDrawer
+        claim={selectedClaim}
+        open={Boolean(selectedClaim)}
+        onClose={() => setSelectedClaim(null)}
+        onWorkflowUpdated={onClaimsChanged}
+      />
     </div>
   );
 }
