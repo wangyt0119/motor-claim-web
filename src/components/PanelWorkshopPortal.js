@@ -8,6 +8,7 @@ import {
   savePanelWorkshopSession,
 } from '../utils/panelWorkshopAuthStorage';
 import { USER_ROLE, normalizeRole } from '../constants/userRoles';
+import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
 function PanelWorkshopPortal() {
   const [session, setSession] = useState(() => getPanelWorkshopSession());
@@ -20,7 +21,7 @@ function PanelWorkshopPortal() {
   const handleAuthenticated = (newSession) => {
     savePanelWorkshopSession(newSession);
     setSession(newSession);
-    window.location.replace('/panel-workshop');
+    window.location.replace(getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/dashboard'));
   };
 
   const handleSignOut = () => {
@@ -33,12 +34,25 @@ function PanelWorkshopPortal() {
     <Routes>
       <Route
         index
-        element={<Navigate to={isAuthenticated ? '/panel-workshop/dashboard' : '/panel-workshop/auth'} replace />}
+        element={
+          <Navigate
+            to={
+              isAuthenticated
+                ? getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/dashboard')
+                : getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/auth')
+            }
+            replace
+          />
+        }
       />
       <Route
         path="auth"
         element={
-          isAuthenticated ? <Navigate to="/panel-workshop/dashboard" replace /> : <PanelWorkshopAuthScreen onAuthenticated={handleAuthenticated} />
+          isAuthenticated ? (
+            <Navigate to={getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/dashboard')} replace />
+          ) : (
+            <PanelWorkshopAuthScreen onAuthenticated={handleAuthenticated} />
+          )
         }
       />
       <Route
@@ -47,7 +61,7 @@ function PanelWorkshopPortal() {
           isAuthenticated ? (
             <PanelWorkshopDashboard currentUser={session?.user} onSignOut={handleSignOut} />
           ) : (
-            <Navigate to="/panel-workshop/auth" replace />
+            <Navigate to={getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/auth')} replace />
           )
         }
       />

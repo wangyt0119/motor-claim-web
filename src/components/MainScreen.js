@@ -6,7 +6,6 @@ import {
   LineChartOutlined, 
   HistoryOutlined, 
   BellOutlined, 
-  DollarOutlined,
   QuestionCircleOutlined,
   CustomerServiceOutlined,
   FileTextOutlined,
@@ -18,14 +17,14 @@ import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-
 import SubmitClaimScreen from './SubmitClaimScreen';
 import CustomerClaimTracker from './CustomerClaimTracker';
 import ClaimHistoryScreen from './ClaimHistoryScreen';
-import NotificationHistoryScreen from './NotificationHistoryScreen';
-import ClaimPaymentsScreen from './ClaimPaymentsScreen';
+import CustomerNotificationScreen from './CustomerNotificationScreen';
 import PanelWorkshopListScreen from './PanelWorkshopListScreen';
 import CustomerDashboardScreen from './CustomerDashboardScreen';
 import ProfileScreen from './ProfileScreen';
 import '../styles/MainScreen.css';
 import { getMyClaims } from '../services/claimService';
 import { getMyCoverages } from '../services/coverageService';
+import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
@@ -77,14 +76,13 @@ function MainScreen({ onSignOut, currentUser }) {
 
   const handleMenuClick = (key) => {
     setSelectedKey(key);
-    // Use absolute paths instead of relative paths
-    navigate(`/customer/${key}`);
+    navigate(getPortalPath(PORTAL_KEYS.CUSTOMER, `/${key}`));
   };
 
   const addNewClaim = (newClaim) => {
     setClaims((previousClaims) => [newClaim, ...previousClaims]);
     setSelectedKey('track');
-    navigate('/customer/track');
+    navigate(getPortalPath(PORTAL_KEYS.CUSTOMER, '/track'));
   };
 
   const handleSignOutClick = () => {
@@ -115,8 +113,8 @@ function MainScreen({ onSignOut, currentUser }) {
         <div className="user-info">
           <Avatar size={40} icon={<UserOutlined />} style={{ backgroundColor: '#FF6600' }} />
           <div className="user-details">
-            <Text strong>{currentUser?.fullName || currentUser?.FullName || 'Customer'}</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
+            <Text strong className="user-name">{currentUser?.fullName || currentUser?.FullName || 'Customer'}</Text>
+            <Text type="secondary" className="user-email">
               {currentUser?.email || currentUser?.Email || 'Signed in customer portal user'}
             </Text>
           </div>
@@ -140,7 +138,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('dashboard')}
             >
               <span>Dashboard</span>
-              <div className="menu-subtitle">Overview & quick actions</div>
             </Menu.Item>
 
             <Menu.Item 
@@ -149,7 +146,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('submit')}
             >
               <span>Submit Claim</span>
-              <div className="menu-subtitle">File a new claim</div>
             </Menu.Item>
             
             <Menu.Item 
@@ -158,7 +154,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('track')}
             >
               <span>Track Claims</span>
-              <div className="menu-subtitle">Monitor active claims</div>
             </Menu.Item>
             
             <Menu.Item 
@@ -167,7 +162,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('history')}
             >
               <span>Claim History</span>
-              <div className="menu-subtitle">View past claims</div>
             </Menu.Item>
             
             <Menu.Item 
@@ -176,16 +170,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('notifications')}
             >
               <span>Notification History</span>
-              <div className="menu-subtitle">View sent notifications</div>
-            </Menu.Item>
-            
-            <Menu.Item 
-              key="payments" 
-              icon={<DollarOutlined />}
-              onClick={() => handleMenuClick('payments')}
-            >
-              <span>My Claim Payments</span>
-              <div className="menu-subtitle">Track payment status</div>
             </Menu.Item>
 
             <Menu.Item
@@ -194,7 +178,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('panel-workshop')}
             >
               <span>Panel Workshop</span>
-              <div className="menu-subtitle">Find approved workshops</div>
             </Menu.Item>
 
             <Menu.Item
@@ -203,7 +186,6 @@ function MainScreen({ onSignOut, currentUser }) {
               onClick={() => handleMenuClick('profile')}
             >
               <span>Profile</span>
-              <div className="menu-subtitle">View your account details</div>
             </Menu.Item>
           </Menu>
           
@@ -240,7 +222,7 @@ function MainScreen({ onSignOut, currentUser }) {
       
       <Content className="main-content">
         <Routes>
-          <Route path="/" element={<Navigate to="/customer/dashboard" replace />} />
+          <Route path="/" element={<Navigate to={getPortalPath(PORTAL_KEYS.CUSTOMER, '/dashboard')} replace />} />
           <Route
             path="dashboard"
             element={
@@ -255,8 +237,10 @@ function MainScreen({ onSignOut, currentUser }) {
           <Route path="submit" element={<SubmitClaimScreen onSubmit={addNewClaim} />} />
           <Route path="track" element={<CustomerClaimTracker claims={claims} onClaimsChanged={refreshClaims} />} />
           <Route path="history" element={<ClaimHistoryScreen claims={claims} coverages={coverages} />} />
-          <Route path="notifications" element={<NotificationHistoryScreen />} />
-          <Route path="payments" element={<ClaimPaymentsScreen claims={claims} />} />
+          <Route
+            path="notifications"
+            element={<CustomerNotificationScreen claims={claims} currentUser={currentUser} />}
+          />
           <Route path="panel-workshop" element={<PanelWorkshopListScreen />} />
           <Route
             path="profile"
@@ -267,7 +251,7 @@ function MainScreen({ onSignOut, currentUser }) {
               />
             }
           />
-          <Route path="*" element={<Navigate to="/customer/dashboard" replace />} />
+          <Route path="*" element={<Navigate to={getPortalPath(PORTAL_KEYS.CUSTOMER, '/dashboard')} replace />} />
         </Routes>
       </Content>
     </Layout>
@@ -275,8 +259,6 @@ function MainScreen({ onSignOut, currentUser }) {
 }
 
 export default MainScreen;
-
-
 
 
 

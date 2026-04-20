@@ -23,7 +23,7 @@ function WorkshopRepairEstimateCard({ estimate, emptyDescription = 'No workshop 
       <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
         <Tag color={getEstimateStatusColor(estimate.status)}>{formatEstimateStatus(estimate.status)}</Tag>
         <Tag color={estimate.isStpApproved ? 'green' : 'orange'}>
-          {estimate.isStpApproved ? 'STP Approved' : formatReviewMode(estimate.reviewMode)}
+          {estimate.isStpApproved ? 'Approved' : formatReviewMode(estimate.reviewMode)}
         </Tag>
         <Tag color="processing">RM {estimate.totalAmount.toFixed(2)}</Tag>
       </Space>
@@ -82,8 +82,8 @@ function WorkshopRepairEstimateCard({ estimate, emptyDescription = 'No workshop 
           style={{ marginTop: 16 }}
           type="success"
           showIcon
-          message="STP threshold met"
-          description="The submitted total is at or below RM 2000.00, so the backend marks it for STP approval."
+          message="Fast review eligible"
+          description="This quotation can move through the faster approval flow."
         />
       ) : (
         <Alert
@@ -91,7 +91,7 @@ function WorkshopRepairEstimateCard({ estimate, emptyDescription = 'No workshop 
           type="warning"
           showIcon
           message="Manual review required"
-          description="The submitted total is above RM 2000.00, so the backend routes it for officer review."
+          description="This estimate is routed for additional officer review."
         />
       )}
     </Card>

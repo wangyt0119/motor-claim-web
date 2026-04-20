@@ -4,14 +4,15 @@ import {
   Button,
   Card,
   Descriptions,
+  Divider,
   Empty,
   Form,
   Input,
   Layout,
   List,
+  Menu,
   Modal,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
@@ -19,16 +20,21 @@ import {
   message,
 } from 'antd';
 import {
+  AppstoreOutlined,
   CalendarOutlined,
   CarOutlined,
   CloudUploadOutlined,
+  DollarOutlined,
+  BellOutlined,
   FileSearchOutlined,
   LogoutOutlined,
   ReloadOutlined,
   SearchOutlined,
   ToolOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
+import '../styles/MainScreen.css';
 import {
   getApprovedClaimsForPanelWorkshop,
   submitWorkshopRepairEstimate,
@@ -36,6 +42,8 @@ import {
 import { uploadFileToCloudinary } from '../services/cloudinaryService';
 import ProfileScreen from './ProfileScreen';
 import WorkshopRepairEstimateCard, { formatEstimateStatus, getEstimateStatusColor } from './WorkshopRepairEstimateCard';
+import WorkshopPaymentsScreen from './WorkshopPaymentsScreen';
+import WorkshopNotificationScreen from './WorkshopNotificationScreen';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -149,7 +157,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       render: (value) => <Tag color="green">{value || 'Approved'}</Tag>,
     },
     {
-      title: 'Estimate',
+      title: 'Total Amount',
       key: 'estimate',
       width: 180,
       render: (_, claim) =>
@@ -196,12 +204,13 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
           <Button
             type="primary"
             icon={<CloudUploadOutlined />}
+            disabled={hasSubmittedEstimate(claim)}
             onClick={(event) => {
               event.stopPropagation();
               openEstimateModal(claim);
             }}
           >
-            {claim.workshopRepairEstimate ? 'Update Submission' : 'Submit Quotation'}
+            {hasSubmittedEstimate(claim) ? 'Submitted' : 'Submit Quotation'}
           </Button>
         </Space>
       ),
@@ -209,86 +218,136 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   ];
 
   const submittedEstimateCount = claims.filter((claim) => claim.workshopRepairEstimate).length;
-
-  const buildNavItem = ({ index, title, subtitle }) => (
-    <div
-      style={{
-        padding: '12px 16px',
-        margin: '6px 12px',
-        borderRadius: 8,
-        cursor: 'pointer',
-        background: selectedIndex === index ? '#FF6600' : 'transparent',
-        color: selectedIndex === index ? '#fff' : 'inherit',
-      }}
-      onClick={() => setSelectedIndex(index)}
-    >
-      <div style={{ fontWeight: 600 }}>{title}</div>
-      <div style={{ fontSize: 12, opacity: selectedIndex === index ? 0.9 : 0.65 }}>{subtitle}</div>
-    </div>
-  );
+  const hasSubmittedEstimate = (claim) => Boolean(claim?.workshopRepairEstimate);
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={280} theme="light" style={{ boxShadow: '0 0 10px rgba(0,0,0,0.08)' }}>
-        <div style={{ padding: '24px 16px', borderBottom: '1px solid #f0f0f0' }}>
+      <Sider width={280} theme="light" style={{ boxShadow: '0 0 10px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column' }}>
+        <div className="logo-container">
           <img src="/assets/etiqalogo.png" alt="Etiqa Logo" style={{ height: 40 }} />
         </div>
 
-        <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
-          <Avatar size={40} icon={<ToolOutlined />} style={{ backgroundColor: '#FF6600' }} />
-          <div style={{ marginLeft: 12 }}>
-            <Text strong style={{ display: 'block' }}>{currentUser?.fullName || currentUser?.FullName || 'Panel Workshop'}</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>{currentUser?.email || currentUser?.Email || 'Workshop account'}</Text>
+        <div className="user-info">
+          <Avatar size={40} icon={<UserOutlined />} style={{ backgroundColor: '#FF6600' }} />
+          <div className="user-details">
+            <Text strong className="user-name">{currentUser?.fullName || currentUser?.FullName || 'Workshop'}</Text>
+            <Text type="secondary" className="user-email">{currentUser?.email || currentUser?.Email || 'Workshop user'}</Text>
           </div>
         </div>
 
-        <div style={{ paddingTop: 12 }}>
-          {buildNavItem({ index: 0, title: 'Bookings', subtitle: 'Assigned customer claims and estimates' })}
-          {buildNavItem({ index: 1, title: 'Profile', subtitle: 'Workshop details and bank account' })}
+        <div className="sidebar-content">
+          <Divider plain orientation="left">
+            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8 }}>
+              MAIN MENU
+            </Text>
+          </Divider>
+          <Menu mode="inline" selectedKeys={[String(selectedIndex)]} className="main-menu">
+            <Menu.Item key="0" icon={<AppstoreOutlined />} onClick={() => setSelectedIndex(0)}>
+              <span>Bookings</span>
+            </Menu.Item>
+            <Menu.Item key="1" icon={<DollarOutlined />} onClick={() => setSelectedIndex(1)}>
+              <span>Payments</span>
+            </Menu.Item>
+            <Menu.Item key="2" icon={<BellOutlined />} onClick={() => setSelectedIndex(2)}>
+              <span>Notifications</span>
+            </Menu.Item>
+            <Menu.Item key="3" icon={<UserOutlined />} onClick={() => setSelectedIndex(3)}>
+              <span>Profile</span>
+            </Menu.Item>
+          </Menu>
         </div>
 
-        <div style={{ padding: 16, marginTop: 'auto' }}>
-          <Button icon={<LogoutOutlined />} block onClick={onSignOut}>Sign Out</Button>
+        <div className="sign-out-container">
+          <Button className="sign-out-button" icon={<LogoutOutlined />} block onClick={onSignOut}>Sign Out</Button>
         </div>
       </Sider>
 
       <Layout>
-        <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
-          <Title level={3} style={{ margin: 0 }}>Panel Workshop Dashboard</Title>
-        </Header>
+        <Header className="portal-dashboard-header" />
 
-        <Content style={{ padding: 24 }}>
+        <Content className="portal-dashboard-page">
           {selectedIndex === 0 ? (
-            <Space direction="vertical" size={24} style={{ width: '100%' }}>
-            <div>
-              <Title level={2} style={{ marginBottom: 6 }}>Customer Workshop Bookings</Title>
-              <Text type="secondary">
-                Customers listed here chose your workshop after their vehicle claim was approved.
-              </Text>
-              <div style={{ marginTop: 8 }}>
-                <Text type="secondary">
-                  Use <Text strong>Submit Quotation</Text> to send the repair amount and supporting documents for officer review.
+            <div className="portal-dashboard-stack">
+            <div className="portal-dashboard-hero" style={{ background: 'linear-gradient(135deg, #ff8a00 0%, #ff5fa2 48%, #5b8def 100%)' }}>
+              <div className="portal-dashboard-hero-content">
+                <span className="portal-dashboard-kicker">Workshop Space</span>
+                <Title level={2} className="portal-dashboard-title">
+                  Welcome back, {currentUser?.fullName || currentUser?.FullName || 'Workshop'}
+                </Title>
+                <Text className="portal-dashboard-description">
+                  Keep track of customer workshop bookings, appointments, and quotation submissions in one easy dashboard.
                 </Text>
+                <div className="portal-dashboard-chip-row">
+                  <div className="portal-dashboard-chip">
+                    <span className="portal-dashboard-chip-label">Assigned Claims</span>
+                    <span className="portal-dashboard-chip-value">{claims.length}</span>
+                  </div>
+                  <div className="portal-dashboard-chip">
+                    <span className="portal-dashboard-chip-label">Today</span>
+                    <span className="portal-dashboard-chip-value">{todayClaims.length}</span>
+                  </div>
+                  <div className="portal-dashboard-chip">
+                    <span className="portal-dashboard-chip-label">Submitted</span>
+                    <span className="portal-dashboard-chip-value">{submittedEstimateCount}</span>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <Space size={16} wrap>
-              <Card style={{ borderRadius: 16, minWidth: 220 }}>
-                <Statistic title="Assigned Claims" value={claims.length} prefix={<FileSearchOutlined />} />
-              </Card>
-              <Card style={{ borderRadius: 16, minWidth: 220 }}>
-                <Statistic title="Upcoming Appointments" value={upcomingClaims.length} prefix={<CalendarOutlined />} />
-              </Card>
-              <Card style={{ borderRadius: 16, minWidth: 220 }}>
-                <Statistic title="Today" value={todayClaims.length} prefix={<CarOutlined />} />
-              </Card>
-              <Card style={{ borderRadius: 16, minWidth: 220 }}>
-                <Statistic title="Estimates Submitted" value={submittedEstimateCount} prefix={<ToolOutlined />} />
-              </Card>
-            </Space>
+            <div className="portal-dashboard-grid">
+              <div className="portal-dashboard-span-3">
+                <WorkshopMetricCard
+                  label="Assigned Claims"
+                  value={claims.length}
+                  subtitle="Approved claims sent to your workshop"
+                  icon={<FileSearchOutlined />}
+                  background="linear-gradient(135deg, #fff4e8 0%, #ffe2ca 100%)"
+                  accent="#ea580c"
+                />
+              </div>
+              <div className="portal-dashboard-span-3">
+                <WorkshopMetricCard
+                  label="Upcoming Appointments"
+                  value={upcomingClaims.length}
+                  subtitle="Bookings already scheduled"
+                  icon={<CalendarOutlined />}
+                  background="linear-gradient(135deg, #eef4ff 0%, #d9e7ff 100%)"
+                  accent="#2563eb"
+                />
+              </div>
+              <div className="portal-dashboard-span-3">
+                <WorkshopMetricCard
+                  label="Today"
+                  value={todayClaims.length}
+                  subtitle="Customers expected today"
+                  icon={<CarOutlined />}
+                  background="linear-gradient(135deg, #edfdf3 0%, #d6f8e1 100%)"
+                  accent="#16a34a"
+                />
+              </div>
+              <div className="portal-dashboard-span-3">
+                <WorkshopMetricCard
+                  label="Submitted"
+                  value={submittedEstimateCount}
+                  subtitle="Quotations already uploaded"
+                  icon={<ToolOutlined />}
+                  background="linear-gradient(135deg, #f7efff 0%, #ecdfff 100%)"
+                  accent="#7c3aed"
+                />
+              </div>
+            </div>
 
-            <Card style={{ borderRadius: 16 }}>
-              <Space style={{ width: '100%', marginBottom: 16, justifyContent: 'space-between' }} wrap>
+            <div className="portal-dashboard-grid">
+              <div className="portal-dashboard-span-8">
+                <Card className="portal-dashboard-card">
+                  <div className="portal-dashboard-card-header">
+                    <div>
+                      <Title level={4} className="portal-dashboard-card-title">Customer Bookings</Title>
+                      <Text className="portal-dashboard-card-subtitle">Review bookings and upload quotation details for officer review</Text>
+                    </div>
+                  </div>
+                  <div className="portal-dashboard-toolbar" style={{ marginBottom: 16 }}>
+                    <div className="portal-dashboard-toolbar-main">
                 <Input
                   allowClear
                   prefix={<SearchOutlined />}
@@ -297,12 +356,15 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   placeholder="Search claim, customer, coverage, date or time"
                   style={{ width: 420 }}
                 />
-                <Button icon={<ReloadOutlined />} onClick={refreshClaims} loading={loading}>
-                  Refresh
-                </Button>
-              </Space>
+                    </div>
+                    <div className="portal-dashboard-toolbar-main">
+                      <Button icon={<ReloadOutlined />} onClick={refreshClaims} loading={loading}>
+                        Refresh
+                      </Button>
+                    </div>
+                  </div>
 
-              <Table
+                  <Table
                 dataSource={filteredClaims}
                 columns={columns}
                 rowKey="id"
@@ -320,8 +382,45 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                 })}
                 locale={{ emptyText: <Empty description="No approved claims are assigned to this workshop yet" /> }}
               />
-            </Card>
-            </Space>
+                </Card>
+              </div>
+
+              <div className="portal-dashboard-span-4">
+                <Card className="portal-dashboard-card">
+                  <div className="portal-dashboard-card-header">
+                    <div>
+                      <Title level={4} className="portal-dashboard-card-title">Workshop Notes</Title>
+                      <Text className="portal-dashboard-card-subtitle">A quick reminder for smooth submissions</Text>
+                    </div>
+                  </div>
+                  <div className="portal-dashboard-list">
+                    <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
+                      <div className="portal-dashboard-list-meta">
+                        <Text strong>Upload quotation first</Text>
+                        <Text type="secondary">Include the repair amount and main quotation file for review.</Text>
+                      </div>
+                    </div>
+                    <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
+                      <div className="portal-dashboard-list-meta">
+                        <Text strong>Add supporting files</Text>
+                        <Text type="secondary">Photos, breakdowns, or receipts help the officer validate faster.</Text>
+                      </div>
+                    </div>
+                    <div className="portal-dashboard-highlight">
+                      <Text strong>Fast summary</Text>
+                      <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
+                        Once a quotation is submitted, it is locked and can no longer be changed from the workshop portal.
+                      </Text>
+                    </div>
+                  </div>
+                </Card>
+              </div>
+            </div>
+            </div>
+          ) : selectedIndex === 1 ? (
+            <WorkshopPaymentsScreen scope="workshop" claims={claims} />
+          ) : selectedIndex === 2 ? (
+            <WorkshopNotificationScreen claims={claims} currentUser={currentUser} />
           ) : (
             <ProfileScreen
               heading="Workshop Profile"
@@ -367,13 +466,19 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
 
             <Card title="Workshop Actions">
               <Space wrap>
-                <Button
-                  type="primary"
-                  icon={<CloudUploadOutlined />}
-                  onClick={() => openEstimateModal(selectedClaim)}
-                >
-                  {selectedClaim.workshopRepairEstimate ? 'Update Submission' : 'Submit Quotation'}
-                </Button>
+                {hasSubmittedEstimate(selectedClaim) ? (
+                  <Tag color="green" style={{ padding: '6px 12px', borderRadius: 999 }}>
+                    Quotation already submitted
+                  </Tag>
+                ) : (
+                  <Button
+                    type="primary"
+                    icon={<CloudUploadOutlined />}
+                    onClick={() => openEstimateModal(selectedClaim)}
+                  >
+                    Submit Quotation
+                  </Button>
+                )}
               </Space>
             </Card>
 
@@ -407,7 +512,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
         <Form form={estimateForm} layout="vertical">
           <Form.Item
             name="totalAmount"
-            label="Total Amount"
+            label="Total Amount (RM)"
             rules={[{ required: true, message: 'Total amount is required.' }]}
           >
             <Input type="number" min={0} step="0.01" />
@@ -431,11 +536,15 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   );
 
   function openEstimateModal(claim) {
+    if (hasSubmittedEstimate(claim)) {
+      message.info('This quotation has already been submitted and can no longer be updated.');
+      return;
+    }
+
     setSelectedClaim(claim);
-    const estimate = claim?.workshopRepairEstimate;
     estimateForm.setFieldsValue({
-      totalAmount: estimate?.totalAmount ?? 0,
-      remarks: estimate?.remarks ?? '',
+      totalAmount: 0,
+      remarks: '',
     });
     setReceiptDocumentFiles([]);
     setSupportingDocumentFiles([]);
@@ -455,17 +564,23 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       return;
     }
 
+    if (hasSubmittedEstimate(selectedClaim)) {
+      message.info('This quotation has already been submitted and can no longer be updated.');
+      closeEstimateModal();
+      return;
+    }
+
     const values = await estimateForm.validateFields();
 
-    if (!selectedClaim.workshopRepairEstimate && receiptDocumentFiles.length === 0) {
+    if (receiptDocumentFiles.length === 0) {
       message.warning('Please upload the receipt or quotation document.');
       return;
     }
 
     setSubmittingEstimate(true);
     try {
-      let receiptOrQuotationDocument = selectedClaim.workshopRepairEstimate?.receiptOrQuotationDocument || null;
-      let supportingDocuments = selectedClaim.workshopRepairEstimate?.supportingDocuments || [];
+      let receiptOrQuotationDocument = null;
+      let supportingDocuments = [];
 
       if (receiptDocumentFiles.length > 0) {
         receiptOrQuotationDocument = await uploadFileToCloudinary(receiptDocumentFiles[0].originFileObj ?? receiptDocumentFiles[0]);
@@ -510,6 +625,35 @@ function formatTimeRange(start, end) {
 
   const normalize = (value) => String(value).slice(0, 5);
   return `${moment(normalize(start), 'HH:mm').format('hh:mm A')} - ${moment(normalize(end), 'HH:mm').format('hh:mm A')}`;
+}
+
+function WorkshopMetricCard({ label, value, subtitle, icon, background, accent }) {
+  return (
+    <Card className="portal-dashboard-stat" style={{ background }}>
+      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+        <Space size={12} align="center">
+          <span
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#fff',
+              color: accent,
+              boxShadow: '0 10px 22px rgba(255,255,255,0.46)',
+            }}
+          >
+            {React.cloneElement(icon, { style: { fontSize: 20 } })}
+          </span>
+          <span className="portal-dashboard-stat-label">{label}</span>
+        </Space>
+        <Text className="portal-dashboard-stat-value">{value}</Text>
+        <Text className="portal-dashboard-stat-subtitle">{subtitle}</Text>
+      </Space>
+    </Card>
+  );
 }
 
 export default PanelWorkshopDashboard;

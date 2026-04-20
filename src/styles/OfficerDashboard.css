@@ -1,23 +1,25 @@
 .officer-nav-item {
   display: flex;
   align-items: center;
-  padding: 12px 16px;
-  margin-bottom: 4px;
-  border-radius: 8px;
+  gap: 12px;
+  padding: 12px 14px;
+  margin-bottom: 6px;
+  border-radius: 14px;
   cursor: pointer;
   transition: all 0.3s;
+  border: 1px solid transparent;
 }
 
 .officer-nav-item:hover {
   background-color: rgba(255, 102, 0, 0.05);
+  border-color: rgba(255, 102, 0, 0.12);
+  transform: translateX(2px);
 }
 
 .officer-nav-item.selected {
-  background-color: rgba(255, 102, 0, 0.1);
-}
-
-.officer-nav-item.selected .officer-nav-icon {
-  color: #FF6600;
+  background: linear-gradient(135deg, rgba(255, 102, 0, 0.12) 0%, rgba(255, 149, 64, 0.18) 100%);
+  border-color: rgba(255, 102, 0, 0.18);
+  box-shadow: 0 10px 24px rgba(255, 102, 0, 0.1);
 }
 
 .officer-nav-item.selected .officer-nav-title {
@@ -25,15 +27,42 @@
   font-weight: 600;
 }
 
+.officer-nav-icon-shell {
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff6ee;
+  border: 1px solid rgba(255, 102, 0, 0.1);
+}
+
+.officer-nav-item.tone-customer .officer-nav-icon-shell {
+  background: #fff7ed;
+  border-color: rgba(217, 119, 6, 0.12);
+}
+
+.officer-nav-item.tone-workshop .officer-nav-icon-shell {
+  background: #eef8f1;
+  border-color: rgba(22, 163, 74, 0.12);
+}
+
+.officer-nav-item.selected .officer-nav-icon-shell {
+  background: #ffffff;
+}
+
 .officer-nav-icon {
   font-size: 20px;
-  margin-right: 12px;
   color: #595959;
 }
 
 .officer-nav-text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
+  flex: 1;
 }
 
 .officer-nav-title {
@@ -45,6 +74,53 @@
 .officer-nav-subtitle {
   font-size: 12px;
   color: #8c8c8c;
+}
+
+.officer-nav-arrow {
+  color: #bfbfbf;
+  font-size: 12px;
+}
+
+.officer-logo-container {
+  padding: 24px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.officer-user-info {
+  padding: 16px;
+  border-bottom: 1px solid #f0f0f0;
+  display: flex;
+  align-items: center;
+}
+
+.officer-user-details {
+  margin-left: 12px;
+  min-width: 0;
+}
+
+.officer-section-label {
+  position: relative;
+  margin: 18px 0 10px;
+  padding-left: 12px;
+}
+
+.officer-section-label::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 3px;
+  bottom: 3px;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ff8f3d 0%, #ff6600 100%);
+}
+
+.officer-section-label span {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: #9ca3af;
 }
 
 .feature-list {

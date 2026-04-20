@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Col,
+  DatePicker,
   Input,
   Row,
   Select,
@@ -30,20 +31,27 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
   const [searchText, setSearchText] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [stpFilter, setStpFilter] = useState('All');
+  const [dateRange, setDateRange] = useState([]);
   const [selectedClaim, setSelectedClaim] = useState(null);
 
   const filteredClaims = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
 
     return claims.filter((claim) => {
-      const matchesStatus = statusFilter === 'All' || claim.status === statusFilter;
+      const matchesStatus = matchesClaimWorkflowFilter(claim, statusFilter);
       const matchesStp =
         stpFilter === 'All' ||
-        (stpFilter === 'Passed' && claim.isStpApproved) ||
-        (stpFilter === 'Manual Review' && !claim.isStpApproved);
+        (stpFilter === 'Auto Approved' && claim.isStpApproved) ||
+        (stpFilter === 'Manual Review' && !claim.isStpApproved && claim.stpStatus !== 'Pending') ||
+        (stpFilter === 'Pending' && String(claim.stpStatus || '').toLowerCase() === 'pending');
+
+      const matchesDate =
+        !dateRange?.length ||
+        (claim.date &&
+          moment(claim.date).isBetween(dateRange[0], dateRange[1], 'day', '[]'));
 
       if (!normalizedSearch) {
-        return matchesStatus && matchesStp;
+        return matchesStatus && matchesStp && matchesDate;
       }
 
       const haystack = [
@@ -62,11 +70,20 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
         .join(' ')
         .toLowerCase();
 
-      return matchesStatus && matchesStp && haystack.includes(normalizedSearch);
+      return matchesStatus && matchesStp && matchesDate && haystack.includes(normalizedSearch);
     });
-  }, [claims, searchText, statusFilter, stpFilter]);
+  }, [claims, dateRange, searchText, statusFilter, stpFilter]);
 
-  const statusOptions = ['All', ...new Set(claims.map((claim) => claim.status).filter(Boolean))];
+  const sortedClaims = useMemo(
+    () =>
+      [...filteredClaims].sort((left, right) => {
+        const leftTime = new Date(left.date || 0).getTime();
+        const rightTime = new Date(right.date || 0).getTime();
+        return rightTime - leftTime;
+      }),
+    [filteredClaims]
+  );
+
   const totalClaims = claims.length;
   const stpPassedCount = claims.filter((claim) => claim.isStpApproved).length;
   const manualReviewCount = claims.filter((claim) => !claim.isStpApproved).length;
@@ -160,7 +177,7 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
           All Claims
         </Title>
         <Text type="secondary">
-          Review live claims, STP outcome, backend validation reasons, and uploaded documents.
+          Review live claims with cleaner workflow filters, STP outcome, backend validation reasons, and uploaded documents.
         </Text>
       </div>
 
@@ -205,7 +222,12 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
             value={statusFilter}
             onChange={setStatusFilter}
             style={{ width: 200 }}
-            options={statusOptions.map((status) => ({ label: status, value: status }))}
+            options={[
+              { label: 'All Workflow Statuses', value: 'All' },
+              { label: 'Manual Review', value: 'Manual Review' },
+              { label: 'Approved', value: 'Approved' },
+              { label: 'Rejected', value: 'Rejected' },
+            ]}
           />
 
           <Select
@@ -213,14 +235,21 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
             onChange={setStpFilter}
             style={{ width: 180 }}
             options={[
-              { label: 'All STP Results', value: 'All' },
-              { label: 'STP Passed', value: 'Passed' },
-              { label: 'Manual Review', value: 'Manual Review' },
+              { label: 'STP: All', value: 'All' },
+              { label: 'STP: Auto Approved', value: 'Auto Approved' },
+              { label: 'STP: Manual Review', value: 'Manual Review' },
+              { label: 'STP: Pending', value: 'Pending' },
             ]}
           />
 
+          <DatePicker.RangePicker
+            value={dateRange}
+            onChange={(values) => setDateRange(values || [])}
+            allowClear
+          />
+
           <Tag icon={<FileSearchOutlined />} color="processing" style={{ padding: '6px 10px' }}>
-            {filteredClaims.length} claim(s)
+            {sortedClaims.length} claim(s)
           </Tag>
 
           <Tag
@@ -234,7 +263,7 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
         </Space>
 
         <Table
-          dataSource={filteredClaims}
+          dataSource={sortedClaims}
           columns={columns}
           loading={loading}
           rowKey="id"
@@ -255,6 +284,28 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
       />
     </div>
   );
+}
+
+function matchesClaimWorkflowFilter(claim, filterValue) {
+  if (filterValue === 'All') {
+    return true;
+  }
+
+  const normalizedStatus = String(claim.status || '').trim().toLowerCase();
+
+  if (filterValue === 'Manual Review') {
+    return ['pending manual review', 'pending customer action', 'customer responded'].includes(normalizedStatus);
+  }
+
+  if (filterValue === 'Approved') {
+    return normalizedStatus === 'approved';
+  }
+
+  if (filterValue === 'Rejected') {
+    return normalizedStatus === 'rejected';
+  }
+
+  return false;
 }
 
 function getStatusColor(status) {

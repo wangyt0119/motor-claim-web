@@ -1,0 +1,9 @@
+{
+  "name": "motor-claim-panel-workshop",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix .. run start:panel-workshop",
+    "build": "npm --prefix .. run build:panel-workshop",
+    "test": "npm --prefix .. run test"
+  }
+}

@@ -3,6 +3,7 @@ import { Card, Button, Typography, Row, Col, Space } from 'antd';
 import { UserOutlined, TeamOutlined, ToolOutlined, SafetyCertificateOutlined, ArrowRightOutlined } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import '../styles/AppSelector.css';
+import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -131,7 +132,7 @@ function AppSelector() {
               icon={<UserOutlined />}
               color="#2196F3"
               features={customerFeatures}
-              onClick={() => navigate('/customer/auth')}
+              onClick={() => navigate(getPortalPath(PORTAL_KEYS.CUSTOMER, '/auth'))}
             />
           </Col>
           
@@ -143,7 +144,7 @@ function AppSelector() {
               icon={<TeamOutlined />}
               color="#FF6600"
               features={officerFeatures}
-              onClick={() => navigate('/officer/auth')}
+              onClick={() => navigate(getPortalPath(PORTAL_KEYS.OFFICER, '/auth'))}
             />
           </Col>
 
@@ -155,7 +156,7 @@ function AppSelector() {
               icon={<SafetyCertificateOutlined />}
               color="#B45309"
               features={adminFeatures}
-              onClick={() => navigate('/admin/auth')}
+              onClick={() => navigate(getPortalPath(PORTAL_KEYS.ADMIN, '/auth'))}
             />
           </Col>
 
@@ -167,7 +168,7 @@ function AppSelector() {
               icon={<ToolOutlined />}
               color="#0F766E"
               features={workshopFeatures}
-              onClick={() => navigate('/panel-workshop/auth')}
+              onClick={() => navigate(getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/auth'))}
             />
           </Col>
         </Row>

@@ -3,6 +3,7 @@ import { getCustomerSession } from '../utils/authStorage';
 import { getAdminSession } from '../utils/adminAuthStorage';
 import { getOfficerSession } from '../utils/officerAuthStorage';
 import { getPanelWorkshopSession } from '../utils/panelWorkshopAuthStorage';
+import { getStandalonePortalTarget, PORTAL_KEYS } from '../config/portalRoutes';
 
 const API_BASE_URL = process.env.REACT_APP_API_BASE_URL || 'https://localhost:44352/api';
 
@@ -12,16 +13,17 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   const pathname = window.location.pathname.toLowerCase();
+  const standaloneTarget = getStandalonePortalTarget();
 
   let session = null;
 
-  if (pathname.startsWith('/panel-workshop')) {
+  if (standaloneTarget === PORTAL_KEYS.PANEL_WORKSHOP || pathname.startsWith('/panel-workshop')) {
     session = getPanelWorkshopSession() || getAdminSession() || getOfficerSession() || getCustomerSession();
-  } else if (pathname.startsWith('/admin')) {
+  } else if (standaloneTarget === PORTAL_KEYS.ADMIN || pathname.startsWith('/admin')) {
     session = getAdminSession() || getOfficerSession() || getPanelWorkshopSession() || getCustomerSession();
-  } else if (pathname.startsWith('/officer')) {
+  } else if (standaloneTarget === PORTAL_KEYS.OFFICER || pathname.startsWith('/officer')) {
     session = getOfficerSession() || getAdminSession() || getPanelWorkshopSession() || getCustomerSession();
-  } else if (pathname.startsWith('/customer')) {
+  } else if (standaloneTarget === PORTAL_KEYS.CUSTOMER || pathname.startsWith('/customer')) {
     session = getCustomerSession() || getAdminSession() || getOfficerSession() || getPanelWorkshopSession();
   } else {
     session = getAdminSession() || getCustomerSession() || getOfficerSession() || getPanelWorkshopSession();

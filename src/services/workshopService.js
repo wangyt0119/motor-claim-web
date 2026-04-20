@@ -67,10 +67,27 @@ export async function getMyWorkshopRepairEstimates() {
   return Array.isArray(payload) ? payload.map(mapWorkshopRepairEstimate) : [];
 }
 
+export async function getMyWorkshopPayments() {
+  const response = await apiClient.get('/Workshop/panel-workshop/payments');
+  const payload = response.data?.data ?? response.data ?? [];
+  return Array.isArray(payload) ? payload.map(mapWorkshopPayment) : [];
+}
+
 export async function getAllWorkshopRepairEstimates() {
   const response = await apiClient.get('/Workshop/repair-estimates/all');
   const payload = response.data?.data ?? response.data ?? [];
   return Array.isArray(payload) ? payload.map(mapWorkshopRepairEstimate) : [];
+}
+
+export async function getAllWorkshopPayments() {
+  const response = await apiClient.get('/Workshop/payments/all');
+  const payload = response.data?.data ?? response.data ?? [];
+  return Array.isArray(payload) ? payload.map(mapWorkshopPayment) : [];
+}
+
+export async function getWorkshopPaymentByEstimate(estimateId) {
+  const response = await apiClient.get(`/Workshop/repair-estimates/${estimateId}/payment`);
+  return mapWorkshopPayment(response.data?.data ?? response.data ?? {});
 }
 
 export async function approveWorkshopRepairEstimate(estimateId, reviewNote) {
@@ -151,6 +168,34 @@ function mapWorkshopRepairEstimate(estimate) {
     reviewedByUserId: estimate.reviewedByUserId ?? estimate.ReviewedByUserId ?? null,
     submittedAt: estimate.submittedAt ?? estimate.SubmittedAt ?? null,
     reviewedAt: estimate.reviewedAt ?? estimate.ReviewedAt ?? null,
+  };
+}
+
+function mapWorkshopPayment(payment) {
+  if (!payment || typeof payment !== 'object') {
+    return null;
+  }
+
+  return {
+    paymentId: payment.paymentId ?? payment.PaymentId ?? null,
+    estimateId: payment.estimateId ?? payment.EstimateId ?? null,
+    claimId: payment.claimId ?? payment.ClaimId ?? null,
+    workshopId: payment.workshopId ?? payment.WorkshopId ?? null,
+    workshopName: payment.workshopName ?? payment.WorkshopName ?? '',
+    amount: Number(payment.amount ?? payment.Amount ?? 0),
+    currency: payment.currency ?? payment.Currency ?? 'MYR',
+    status: payment.status ?? payment.Status ?? '',
+    provider: payment.provider ?? payment.Provider ?? '',
+    approvalSource: payment.approvalSource ?? payment.ApprovalSource ?? '',
+    providerReference: payment.providerReference ?? payment.ProviderReference ?? null,
+    bankNameSnapshot: payment.bankNameSnapshot ?? payment.BankNameSnapshot ?? null,
+    bankAccountNumberSnapshot:
+      payment.bankAccountNumberSnapshot ?? payment.BankAccountNumberSnapshot ?? null,
+    bankAccountHolderNameSnapshot:
+      payment.bankAccountHolderNameSnapshot ?? payment.BankAccountHolderNameSnapshot ?? null,
+    failureReason: payment.failureReason ?? payment.FailureReason ?? null,
+    createdAt: payment.createdAt ?? payment.CreatedAt ?? null,
+    paidAt: payment.paidAt ?? payment.PaidAt ?? null,
   };
 }
 

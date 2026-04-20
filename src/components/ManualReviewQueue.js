@@ -26,11 +26,12 @@ function ManualReviewQueue({ claims = [], onClaimsChanged }) {
       .filter((claim) => ['Pending Manual Review', 'Customer Responded'].includes(claim.status))
       .map((claim) => {
         const reasons = claim.validationResult?.reasons || [];
+        const priority = getManualReviewPriority(claim);
         return {
           ...claim,
-          priority: claim.validationResult?.isDocumentComplete === false ? 'High' : 'Medium',
-          flagReason: reasons[0] || 'Needs manual review',
-          flagDetails: reasons.join(' ') || 'Backend marked this claim for manual review.',
+          priority,
+          flagReason: reasons[0] || getPriorityReason(priority, claim),
+          flagDetails: reasons.join(' ') || getPriorityDescription(priority, claim),
           flaggedDate: claim.date,
         };
       });
@@ -350,6 +351,57 @@ function ManualReviewQueue({ claims = [], onClaimsChanged }) {
 }
 
 export default ManualReviewQueue;
+
+function getManualReviewPriority(claim) {
+  const validation = claim.validationResult || {};
+  const reasons = (validation.reasons || []).join(' ').toLowerCase();
+  const amount = Number(claim.claimAmount || 0);
+  const normalizedStatus = String(claim.status || '').toLowerCase();
+
+  const hasCriticalMismatch =
+    validation.isIdentityMatched === false ||
+    validation.isVehicleMatched === false ||
+    validation.isPoliceReportMatched === false ||
+    validation.isDrivingLicenseMatched === false;
+
+  const hasCriticalDocumentIssue =
+    validation.isDocumentComplete === false ||
+    /ocr failed|missing|does not match|fraud|suspicious|confidence is too low/.test(reasons);
+
+  if (hasCriticalMismatch || hasCriticalDocumentIssue || amount >= 5000) {
+    return 'High';
+  }
+
+  if (normalizedStatus === 'customer responded') {
+    return 'Medium';
+  }
+
+  return 'Medium';
+}
+
+function getPriorityReason(priority, claim) {
+  if (priority === 'High') {
+    return 'Critical mismatch or missing key evidence';
+  }
+
+  if (String(claim.status || '').toLowerCase() === 'customer responded') {
+    return 'Customer follow-up needs officer review';
+  }
+
+  return 'Needs officer review';
+}
+
+function getPriorityDescription(priority, claim) {
+  if (priority === 'High') {
+    return 'This claim has a key document mismatch, missing evidence, suspicious indicator, or a higher-risk review signal.';
+  }
+
+  if (String(claim.status || '').toLowerCase() === 'customer responded') {
+    return 'The customer has replied and the officer should verify whether the updated information is sufficient.';
+  }
+
+  return 'This claim needs manual officer assessment before it can move forward.';
+}
 
 
 

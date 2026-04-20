@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { Alert, Button, Card, Col, Empty, List, Row, Space, Statistic, Tag, Typography } from 'antd';
+import { Alert, Button, Card, Empty, Space, Tag, Typography } from 'antd';
 import {
   CalendarOutlined,
   CheckCircleOutlined,
@@ -11,6 +11,7 @@ import {
   ToolOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
+import '../styles/MainScreen.css';
 
 const { Title, Text } = Typography;
 
@@ -47,19 +48,37 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
     [claims]
   );
 
-  const latestClaims = sortedClaims.slice(0, 3);
+  const latestClaims = sortedClaims.slice(0, 4);
   const nextWorkshopBooking = workshopBookings[0] || null;
 
   return (
-    <div style={{ padding: 24 }}>
-      <Space direction="vertical" size={24} style={{ width: '100%' }}>
-        <div>
-          <Title level={2} style={{ marginBottom: 6 }}>
-            Welcome back, {currentUser?.fullName || currentUser?.FullName || 'Customer'}
-          </Title>
-          <Text type="secondary">
-            Keep track of your claims, officer requests, payments, and workshop bookings in one place.
-          </Text>
+    <div className="portal-dashboard-page">
+      <div className="portal-dashboard-stack">
+        <div className="portal-dashboard-hero">
+          <div className="portal-dashboard-hero-content">
+            <span className="portal-dashboard-kicker">Customer Home</span>
+            <Title level={2} className="portal-dashboard-title">
+              Welcome back, {currentUser?.fullName || currentUser?.FullName || 'Customer'}
+            </Title>
+            <Text className="portal-dashboard-description">
+              Keep track of your claims, officer requests, and workshop bookings in one bright and easy dashboard.
+            </Text>
+
+            <div className="portal-dashboard-chip-row">
+              <div className="portal-dashboard-chip">
+                <span className="portal-dashboard-chip-label">Total Claims</span>
+                <span className="portal-dashboard-chip-value">{claims.length}</span>
+              </div>
+              <div className="portal-dashboard-chip">
+                <span className="portal-dashboard-chip-label">Need Action</span>
+                <span className="portal-dashboard-chip-value">{pendingCustomerActions.length}</span>
+              </div>
+              <div className="portal-dashboard-chip">
+                <span className="portal-dashboard-chip-label">Approved</span>
+                <span className="portal-dashboard-chip-value">{approvedClaims.length}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
         {pendingCustomerActions.length ? (
@@ -73,6 +92,7 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
                 Open Track Claims
               </Button>
             }
+            style={{ borderRadius: 18, border: '1px solid rgba(255, 193, 7, 0.28)', background: '#fff9e8' }}
           />
         ) : (
           <Alert
@@ -80,141 +100,192 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
             type="success"
             message="You are up to date"
             description="There are no customer actions waiting right now."
+            style={{ borderRadius: 18, border: '1px solid rgba(34, 197, 94, 0.22)', background: '#f0fdf4' }}
           />
         )}
 
-        <Row gutter={[16, 16]}>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic title="Total Claims" value={claims.length} prefix={<FileTextOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic title="Active Claims" value={activeClaims.length} prefix={<ClockCircleOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic title="Approved Claims" value={approvedClaims.length} prefix={<CheckCircleOutlined />} />
-            </Card>
-          </Col>
-          <Col xs={24} sm={12} lg={6}>
-            <Card style={{ borderRadius: 12 }}>
-              <Statistic title="My Coverages" value={coverages.length} prefix={<ToolOutlined />} />
-            </Card>
-          </Col>
-        </Row>
+        <div className="portal-dashboard-grid">
+          <ColWrapper spanClass="portal-dashboard-span-3">
+            <StatCard
+              label="Total Claims"
+              value={claims.length}
+              subtitle="Everything submitted so far"
+              icon={<FileTextOutlined />}
+              background="linear-gradient(135deg, #fff3e8 0%, #ffe0cc 100%)"
+              accent="#f97316"
+            />
+          </ColWrapper>
+          <ColWrapper spanClass="portal-dashboard-span-3">
+            <StatCard
+              label="Active Claims"
+              value={activeClaims.length}
+              subtitle="Still in progress"
+              icon={<ClockCircleOutlined />}
+              background="linear-gradient(135deg, #eef4ff 0%, #dce9ff 100%)"
+              accent="#2563eb"
+            />
+          </ColWrapper>
+          <ColWrapper spanClass="portal-dashboard-span-3">
+            <StatCard
+              label="Approved Claims"
+              value={approvedClaims.length}
+              subtitle="Claims already approved"
+              icon={<CheckCircleOutlined />}
+              background="linear-gradient(135deg, #ecfdf3 0%, #d4f7df 100%)"
+              accent="#16a34a"
+            />
+          </ColWrapper>
+          <ColWrapper spanClass="portal-dashboard-span-3">
+            <StatCard
+              label="My Coverages"
+              value={coverages.length}
+              subtitle="Policies linked to your account"
+              icon={<ToolOutlined />}
+              background="linear-gradient(135deg, #f7efff 0%, #eddcff 100%)"
+              accent="#7c3aed"
+            />
+          </ColWrapper>
+        </div>
 
-        <Row gutter={[16, 16]}>
-          <Col xs={24} lg={14}>
-            <Card
-              title="Recent Claims"
-              extra={
+        <div className="portal-dashboard-grid">
+          <ColWrapper spanClass="portal-dashboard-span-7">
+            <Card className="portal-dashboard-card">
+              <div className="portal-dashboard-card-header">
+                <div>
+                  <Title level={4} className="portal-dashboard-card-title">Recent Claims</Title>
+                  <Text className="portal-dashboard-card-subtitle">Your newest submissions and their latest status</Text>
+                </div>
                 <Button type="link" onClick={() => onOpenSection('history')}>
                   View all history
                 </Button>
-              }
-              style={{ borderRadius: 12 }}
-            >
+              </div>
+
               {latestClaims.length ? (
-                <List
-                  dataSource={latestClaims}
-                  renderItem={(claim) => (
-                    <List.Item
-                      actions={[
-                        <Button key="track" onClick={() => onOpenSection('track')}>
-                          Open
-                        </Button>,
-                      ]}
-                    >
-                      <List.Item.Meta
-                        title={
-                          <Space wrap>
-                            <Text strong>{claim.id}</Text>
-                            <Tag color={getStatusColor(claim.status)}>{claim.status}</Tag>
-                            <Tag color={claim.isStpApproved ? 'green' : 'orange'}>
-                              {claim.isStpApproved ? 'STP Passed' : 'Manual Review'}
-                            </Tag>
-                          </Space>
-                        }
-                        description={
-                          <Space direction="vertical" size={2}>
-                            <Text type="secondary">{claim.type}</Text>
-                            <Text type="secondary">
-                              Submitted {moment(claim.date).format('DD MMM YYYY')}
-                            </Text>
-                            <Text type="secondary">
-                              Vehicle: {claim.vehicleRegistration || 'Not available'}
-                            </Text>
-                          </Space>
-                        }
-                      />
-                    </List.Item>
-                  )}
-                />
+                <div className="portal-dashboard-list">
+                  {latestClaims.map((claim) => (
+                    <div key={claim.id} className="portal-dashboard-list-item">
+                      <div className="portal-dashboard-list-meta">
+                        <Text strong>{claim.id}</Text>
+                        <Text type="secondary">{claim.type || 'Vehicle damage claim'}</Text>
+                        <Text type="secondary">
+                          Submitted {moment(claim.date).format('DD MMM YYYY')} | Vehicle: {claim.vehicleRegistration || 'Not available'}
+                        </Text>
+                      </div>
+                      <Space wrap>
+                        <Tag color={getStatusColor(claim.status)}>{claim.status}</Tag>
+                        <Tag color={claim.isStpApproved ? 'green' : 'orange'}>
+                          {claim.isStpApproved ? 'Approved' : 'Under Review'}
+                        </Tag>
+                        <Button onClick={() => onOpenSection('track')}>Open</Button>
+                      </Space>
+                    </div>
+                  ))}
+                </div>
               ) : (
-                <Empty
-                  description="No claims submitted yet"
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                >
+                <Empty className="portal-dashboard-empty" description="No claims submitted yet" image={Empty.PRESENTED_IMAGE_SIMPLE}>
                   <Button type="primary" icon={<PlusCircleOutlined />} onClick={() => onOpenSection('submit')}>
                     Submit First Claim
                   </Button>
                 </Empty>
               )}
             </Card>
-          </Col>
+          </ColWrapper>
 
-          <Col xs={24} lg={10}>
-            <Space direction="vertical" size={16} style={{ width: '100%' }}>
-              <Card style={{ borderRadius: 12 }}>
-                <Space direction="vertical" size={10} style={{ width: '100%' }}>
-                  <Text strong>Quick Actions</Text>
-                  <Button icon={<PlusCircleOutlined />} block onClick={() => onOpenSection('submit')}>
+          <ColWrapper spanClass="portal-dashboard-span-5">
+            <div className="portal-dashboard-stack">
+              <Card className="portal-dashboard-card">
+                <div className="portal-dashboard-card-header">
+                  <div>
+                    <Title level={4} className="portal-dashboard-card-title">Quick Actions</Title>
+                    <Text className="portal-dashboard-card-subtitle">Jump straight to the task you need</Text>
+                  </div>
+                </div>
+
+                <div className="portal-dashboard-action-grid">
+                  <Button className="portal-dashboard-action-button" type="primary" icon={<PlusCircleOutlined />} block onClick={() => onOpenSection('submit')}>
                     Submit New Claim
                   </Button>
-                  <Button icon={<LineChartOutlined />} block onClick={() => onOpenSection('track')}>
+                  <Button className="portal-dashboard-action-button" icon={<LineChartOutlined />} block onClick={() => onOpenSection('track')}>
                     Track Claims
                   </Button>
-                  <Button icon={<HistoryOutlined />} block onClick={() => onOpenSection('history')}>
+                  <Button className="portal-dashboard-action-button" icon={<HistoryOutlined />} block onClick={() => onOpenSection('history')}>
                     Claim History
                   </Button>
-                  <Button icon={<ToolOutlined />} block onClick={() => onOpenSection('panel-workshop')}>
+                  <Button className="portal-dashboard-action-button" icon={<ToolOutlined />} block onClick={() => onOpenSection('panel-workshop')}>
                     Find Panel Workshop
                   </Button>
-                </Space>
+                </div>
               </Card>
 
-              <Card title="Next Workshop Booking" style={{ borderRadius: 12 }}>
+              <Card className="portal-dashboard-card">
+                <div className="portal-dashboard-card-header">
+                  <div>
+                    <Title level={4} className="portal-dashboard-card-title">Next Workshop Booking</Title>
+                    <Text className="portal-dashboard-card-subtitle">Your upcoming service appointment at a glance</Text>
+                  </div>
+                </div>
+
                 {nextWorkshopBooking ? (
-                  <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <div className="portal-dashboard-highlight">
                     <Text strong>{nextWorkshopBooking.workshopAppointment.workshopName}</Text>
-                    <Text type="secondary">
+                    <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
                       {moment(nextWorkshopBooking.workshopAppointment.preferredDate).format('DD MMM YYYY')}
                     </Text>
-                    <Text type="secondary">
+                    <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
                       {formatTimeRange(
                         nextWorkshopBooking.workshopAppointment.timeSlotStart,
                         nextWorkshopBooking.workshopAppointment.timeSlotEnd
                       )}
                     </Text>
-                    <Text type="secondary">
+                    <Text type="secondary" style={{ display: 'block', margin: '6px 0 14px' }}>
                       {nextWorkshopBooking.workshopAppointment.workshopAddress || 'Address not available'}
                     </Text>
                     <Button icon={<CalendarOutlined />} onClick={() => onOpenSection('track')}>
                       Open Booking
                     </Button>
-                  </Space>
+                  </div>
                 ) : (
-                  <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="No workshop booking yet" />
+                  <Empty className="portal-dashboard-empty" image={Empty.PRESENTED_IMAGE_SIMPLE} description="No workshop booking yet" />
                 )}
               </Card>
-            </Space>
-          </Col>
-        </Row>
-      </Space>
+            </div>
+          </ColWrapper>
+        </div>
+      </div>
     </div>
+  );
+}
+
+function ColWrapper({ children, spanClass }) {
+  return <div className={spanClass}>{children}</div>;
+}
+
+function StatCard({ label, value, subtitle, icon, background, accent }) {
+  return (
+    <Card className="portal-dashboard-stat" style={{ background }}>
+      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+        <Space size={12} align="center">
+          <span
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#fff',
+              color: accent,
+              boxShadow: '0 10px 22px rgba(255,255,255,0.46)',
+            }}
+          >
+            {React.cloneElement(icon, { style: { fontSize: 20 } })}
+          </span>
+          <span className="portal-dashboard-stat-label">{label}</span>
+        </Space>
+        <Text className="portal-dashboard-stat-value">{value}</Text>
+        <Text className="portal-dashboard-stat-subtitle">{subtitle}</Text>
+      </Space>
+    </Card>
   );
 }
 

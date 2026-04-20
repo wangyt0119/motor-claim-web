@@ -1,11 +1,10 @@
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Layout, Avatar, Typography, Badge, Button, Row, Col, Card, Statistic, message } from 'antd';
+import { Layout, Avatar, Typography, Badge, Button, Row, Col, Card, Divider, Menu, message } from 'antd';
 import { 
   DashboardOutlined, 
   FlagOutlined, 
   ClockCircleOutlined, 
-  CheckCircleOutlined,
   SecurityScanOutlined,
   AreaChartOutlined,
   UnorderedListOutlined,
@@ -14,24 +13,25 @@ import {
   DollarOutlined,
   LogoutOutlined,
   UserOutlined,
-  BellOutlined
+  BellOutlined,
+  ToolOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import '../styles/OfficerDashboard.css';
+import '../styles/MainScreen.css';
 import { getAllClaims } from '../services/claimService';
 import { getAllCoverages } from '../services/coverageService';
 
 // Import all required components
 import ManualReviewQueue from './ManualReviewQueue';
-import PendingClaimsScreen from './PendingClaimsScreen';
-import ApprovedClaimsScreen from './ApprovedClaimsScreen';
 import SuspiciousClaimsReview from './SuspiciousClaimsReview';
 import ReportsScreen from './ReportsScreen';
 import TrackValidationProcess from './TrackValidationProcess';
-import NotificationAuditScreen from './NotificationAuditScreen';
-import PaymentMonitoringDashboard from './PaymentMonitoringDashboard';
+import OfficerNotificationAuditScreen from './OfficerNotificationAuditScreen';
+import WorkshopPaymentsScreen from './WorkshopPaymentsScreen';
 import AllClaimsOfficerScreen from './AllClaimsOfficerScreen';
-import ProfileScreen from './ProfileScreen';
+import WorkshopSubmissionsOfficerScreen from './WorkshopSubmissionsOfficerScreen';
+import { getPortalBasePath, getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
 const { Sider, Content, Header } = Layout;
 const { Title, Text } = Typography;
@@ -44,8 +44,11 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (window.location.pathname === '/officer' || window.location.pathname === '/officer/') {
-      navigate('/officer/dashboard', { replace: true });
+    const officerBasePath = getPortalBasePath(PORTAL_KEYS.OFFICER) || '/';
+    const normalizedPath = window.location.pathname.replace(/\/+$/, '') || '/';
+
+    if (normalizedPath === officerBasePath.replace(/\/+$/, '') || normalizedPath === '/') {
+      navigate(getPortalPath(PORTAL_KEYS.OFFICER, '/dashboard'), { replace: true });
     }
   }, [navigate]);
 
@@ -94,86 +97,203 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       );
     });
   }, [claims]);
-
-  const buildOfficerNavItem = ({ icon, title, subtitle, index, isSelected }) => (
-    <div 
-      className={`officer-nav-item ${isSelected ? 'selected' : ''}`}
-      onClick={() => {
-        setSelectedIndex(index);
-        // In a real app, you might want to navigate to a specific route
-        // navigate(`/officer/${title.toLowerCase().replace(' ', '-')}`);
-      }}
-    >
-      <div className="officer-nav-icon">
-        {icon}
-      </div>
-      <div className="officer-nav-text">
-        <div className="officer-nav-title">{title}</div>
-        <div className="officer-nav-subtitle">{subtitle}</div>
-      </div>
-    </div>
+  const workshopSubmissions = useMemo(
+    () => claims.filter((claim) => claim.workshopRepairEstimate),
+    [claims]
+  );
+  const recentClaims = useMemo(
+    () =>
+      [...claims]
+        .sort((left, right) => new Date(right.createdAt || right.date || 0) - new Date(left.createdAt || left.date || 0))
+        .slice(0, 5),
+    [claims]
+  );
+  const approvedAmount = useMemo(
+    () =>
+      approvedClaims.reduce((sum, claim) => {
+        const claimAmount = Number(claim.claimAmount || 0);
+        const workshopAmount = Number(claim.workshopRepairEstimate?.totalAmount || 0);
+        return sum + (claimAmount > 0 ? claimAmount : workshopAmount);
+      }, 0),
+    [approvedClaims]
   );
 
   const buildDashboardView = () => (
-    <div style={{ padding: 24 }}>
-      <Title level={2}>Officer Dashboard</Title>
-      <Text type="secondary" style={{ fontSize: 16 }}>
-        Welcome back, {currentOfficer?.fullName || currentOfficer?.FullName || 'Sarah Johnson'}
-      </Text>
-      
-      <Row gutter={[24, 24]} style={{ marginTop: 24 }}>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Claims Pending Review"
-              value={pendingClaims.length}
-              valueStyle={{ color: '#FF6600' }}
-              prefix={<ClockCircleOutlined />}
-            />
-          </Card>
+    <div style={{ padding: 24, background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)', minHeight: '100%' }}>
+      <div
+        style={{
+          borderRadius: 28,
+          padding: 28,
+          background: 'linear-gradient(135deg, #111827 0%, #1d4ed8 52%, #0f766e 100%)',
+          color: '#fff',
+          boxShadow: '0 24px 56px rgba(15, 23, 42, 0.18)',
+        }}
+      >
+        <Row gutter={[24, 24]} align="middle">
+          <Col xs={24} lg={15}>
+            <Text style={{ color: 'rgba(255,255,255,0.72)', letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 12 }}>
+              Claims Command Center
+            </Text>
+            <Title level={2} style={{ color: '#fff', margin: '10px 0 6px' }}>
+              Welcome back, {currentOfficer?.fullName || currentOfficer?.FullName || 'Officer'}
+            </Title>
+            <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 16 }}>
+              Keep track of reviews, approvals, suspicious cases, and workshop activity in one live officer dashboard.
+            </Text>
+            <Row gutter={[12, 12]} style={{ marginTop: 22 }}>
+              <Col xs={12} sm={8}>
+                <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 16 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.72)', display: 'block', marginBottom: 4 }}>Pending Queue</Text>
+                  <Title level={3} style={{ color: '#fff', margin: 0 }}>{pendingClaims.length}</Title>
+                </div>
+              </Col>
+              <Col xs={12} sm={8}>
+                <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 16 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.72)', display: 'block', marginBottom: 4 }}>Approved Claims</Text>
+                  <Title level={3} style={{ color: '#fff', margin: 0 }}>{approvedClaims.length}</Title>
+                </div>
+              </Col>
+              <Col xs={12} sm={8}>
+                <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 16 }}>
+                  <Text style={{ color: 'rgba(255,255,255,0.72)', display: 'block', marginBottom: 4 }}>Approved Value</Text>
+                  <Title level={3} style={{ color: '#fff', margin: 0 }}>
+                    RM {approvedAmount.toLocaleString('en-MY', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                  </Title>
+                </div>
+              </Col>
+            </Row>
+          </Col>
+          <Col xs={24} lg={9}>
+            <Card
+              bordered={false}
+              style={{ borderRadius: 24, background: 'rgba(255,255,255,0.96)' }}
+              bodyStyle={{ padding: 22 }}
+            >
+              <Text strong style={{ fontSize: 16, color: '#0f172a' }}>Today’s Focus</Text>
+              <div style={{ marginTop: 18, display: 'grid', gap: 14 }}>
+                {[
+                  { label: 'Manual review queue', value: pendingClaims.length, tone: '#f97316' },
+                  { label: 'Suspicious signals', value: suspiciousClaims.length, tone: '#ef4444' },
+                  { label: 'Workshop submissions', value: workshopSubmissions.length, tone: '#16a34a' },
+                ].map((item) => (
+                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 16, background: `${item.tone}12`, border: `1px solid ${item.tone}22` }}>
+                    <Text style={{ color: '#334155' }}>{item.label}</Text>
+                    <Text strong style={{ color: item.tone, fontSize: 18 }}>{item.value}</Text>
+                  </div>
+                ))}
+              </div>
+            </Card>
+          </Col>
+        </Row>
+      </div>
+
+      <Row gutter={[20, 20]} style={{ marginTop: 24 }}>
+        <Col xs={24} sm={12} xl={6}>
+          {buildDashboardMetricCard({
+            title: 'Claims Pending Review',
+            value: pendingClaims.length,
+            subtitle: 'Customer and manual review queues',
+            icon: <ClockCircleOutlined />,
+            color: '#f97316',
+            background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+          })}
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Flagged for Manual Review"
-              value={pendingClaims.length}
-              valueStyle={{ color: '#E53E3E' }}
-              prefix={<FlagOutlined />}
-            />
-          </Card>
+        <Col xs={24} sm={12} xl={6}>
+          {buildDashboardMetricCard({
+            title: 'Suspicious Claims',
+            value: suspiciousClaims.length,
+            subtitle: 'Potential fraud or OCR mismatch',
+            icon: <SecurityScanOutlined />,
+            color: '#ef4444',
+            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+          })}
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Approved This Week"
-              value={approvedClaims.length}
-              valueStyle={{ color: '#4CAF50' }}
-              prefix={<CheckCircleOutlined />}
-            />
-          </Card>
+        <Col xs={24} sm={12} xl={6}>
+          {buildDashboardMetricCard({
+            title: 'Workshop Submissions',
+            value: workshopSubmissions.length,
+            subtitle: 'Repair estimates submitted',
+            icon: <ToolOutlined />,
+            color: '#16a34a',
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+          })}
         </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic
-              title="Suspicious Claims"
-              value={suspiciousClaims.length}
-              valueStyle={{ color: '#FF9800' }}
-              prefix={<SecurityScanOutlined />}
-            />
-          </Card>
+        <Col xs={24} sm={12} xl={6}>
+          {buildDashboardMetricCard({
+            title: 'System Coverage Count',
+            value: totalCoverages,
+            subtitle: 'Coverages linked in the backend',
+            icon: <DashboardOutlined />,
+            color: '#2563eb',
+            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+          })}
         </Col>
       </Row>
 
-      <Card style={{ marginTop: 24, borderRadius: 16 }}>
-        <Row gutter={[16, 16]}>
-          <Col xs={24} md={12}>
-            <Statistic title="Total Claims In System" value={totalClaims} />
-          </Col>
-          <Col xs={24} md={12}>
-            <Statistic title="Total Coverages In System" value={totalCoverages} />
-          </Col>
-        </Row>
-      </Card>
+      <Row gutter={[20, 20]} style={{ marginTop: 4 }}>
+        <Col xs={24} xl={14}>
+          <Card style={{ borderRadius: 24, border: '1px solid #e2e8f0', boxShadow: '0 12px 28px rgba(15, 23, 42, 0.06)' }}>
+            <Row justify="space-between" align="middle">
+              <Col>
+                <Title level={4} style={{ margin: 0 }}>Review Pipeline</Title>
+                <Text type="secondary">Current operational distribution across the officer workflow</Text>
+              </Col>
+              <Col>
+                <Badge count={totalClaims} style={{ backgroundColor: '#2563eb' }} />
+              </Col>
+            </Row>
+            <div style={{ marginTop: 20, display: 'grid', gap: 14 }}>
+              {[
+                { label: 'All claims in system', value: totalClaims, color: '#2563eb' },
+                { label: 'Pending review', value: pendingClaims.length, color: '#f97316' },
+                { label: 'Approved claims', value: approvedClaims.length, color: '#16a34a' },
+                { label: 'Suspicious claims', value: suspiciousClaims.length, color: '#ef4444' },
+              ].map((item) => {
+                const percent = totalClaims > 0 ? Math.round((item.value / totalClaims) * 100) : 0;
+                return (
+                  <div key={item.label}>
+                    <Row justify="space-between" style={{ marginBottom: 6 }}>
+                      <Text strong>{item.label}</Text>
+                      <Text type="secondary">{item.value} | {percent}%</Text>
+                    </Row>
+                    <div style={{ height: 10, borderRadius: 999, background: '#e2e8f0', overflow: 'hidden' }}>
+                      <div style={{ width: `${percent}%`, height: '100%', borderRadius: 999, background: `linear-gradient(90deg, ${item.color} 0%, ${item.color}BB 100%)` }} />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} xl={10}>
+          <Card style={{ borderRadius: 24, border: '1px solid #e2e8f0', boxShadow: '0 12px 28px rgba(15, 23, 42, 0.06)' }}>
+            <Title level={4} style={{ marginTop: 0 }}>Recent Claim Activity</Title>
+            <Text type="secondary">Latest claims arriving into the officer workspace</Text>
+            <div style={{ marginTop: 18, display: 'grid', gap: 12 }}>
+              {recentClaims.length === 0 ? (
+                <Text type="secondary">No recent claims available yet.</Text>
+              ) : recentClaims.map((claim) => (
+                <div key={claim.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, padding: '12px 14px', borderRadius: 18, background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                  <div style={{ minWidth: 0 }}>
+                    <Text strong style={{ display: 'block' }}>{claim.id}</Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {claim.vehicleRegistration || 'Vehicle not specified'} | {claim.type || 'Vehicle damage'}
+                    </Text>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <Text style={{ color: getDashboardStatusColor(claim.status), fontWeight: 700, display: 'block' }}>
+                      {claim.status || 'Unknown'}
+                    </Text>
+                    <Text type="secondary" style={{ fontSize: 12 }}>
+                      {formatDashboardDate(claim.createdAt || claim.date)}
+                    </Text>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+      </Row>
     </div>
   );
 
@@ -182,30 +302,38 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       case 0:
         return buildDashboardView();
       case 1:
-        return <ManualReviewQueue claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
-      case 2:
-        return <PendingClaimsScreen claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
-      case 3:
-        return <ApprovedClaimsScreen claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
-      case 4:
-        return <SuspiciousClaimsReview />;
-      case 5:
         return <AllClaimsOfficerScreen claims={claims} loading={loadingClaims} onRefresh={refreshClaims} onClaimsChanged={refreshClaims} />;
-      case 6:
-        return <ReportsScreen />;
-      case 7:
-        return <TrackValidationProcess />;
-      case 8:
-        return <NotificationAuditScreen />;
-      case 9:
-        return <PaymentMonitoringDashboard />;
-      case 10:
+      case 2:
+        return <ManualReviewQueue claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
+      case 3:
+        return <SuspiciousClaimsReview />;
+      case 4:
         return (
-          <ProfileScreen
-            heading="Officer Profile"
-            description="Review your officer or admin account details."
+          <WorkshopSubmissionsOfficerScreen
+            claims={claims}
+            loading={loadingClaims}
+            onRefresh={refreshClaims}
+            onClaimsChanged={refreshClaims}
           />
         );
+      case 5:
+        return (
+          <WorkshopSubmissionsOfficerScreen
+            claims={claims}
+            loading={loadingClaims}
+            mode="manual-review"
+            onRefresh={refreshClaims}
+            onClaimsChanged={refreshClaims}
+          />
+        );
+      case 6:
+        return <TrackValidationProcess claims={claims} loading={loadingClaims} onRefresh={refreshClaims} />;
+      case 7:
+        return <ReportsScreen claims={claims} loading={loadingClaims} onRefresh={refreshClaims} />;
+      case 8:
+        return <WorkshopPaymentsScreen claims={claims} />;
+      case 9:
+        return <OfficerNotificationAuditScreen claims={claims} />;
       default:
         return (
           <div style={{ padding: 24, textAlign: 'center' }}>
@@ -225,160 +353,100 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
         height: '100vh',
         position: 'fixed',
         left: 0,
+        display: 'flex',
+        flexDirection: 'column',
       }}>
-        <div style={{ 
-          padding: '24px 16px', 
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center'
-        }}>
+        <div className="logo-container">
           <img 
-            src="/assets/etiqalogo.png" 
+            src={`${process.env.PUBLIC_URL}/assets/etiqalogo.png`} 
             alt="Etiqa Logo" 
-            style={{ height: 40 }}
+            height={40}
+            onError={(e) => {
+              e.target.src = `${process.env.PUBLIC_URL}/logo192.png`;
+              e.target.onerror = null;
+            }}
           />
         </div>
         
-        <div style={{ 
-          padding: '16px', 
-          borderBottom: '1px solid #f0f0f0',
-          display: 'flex',
-          alignItems: 'center'
-        }}>
+        <div className="user-info">
           <Avatar size={40} icon={<UserOutlined />} style={{ backgroundColor: '#FF6600' }} />
-          <div style={{ marginLeft: 12 }}>
-            <Text strong style={{ display: 'block' }}>
+          <div className="user-details">
+            <Text strong className="user-name">
               {currentOfficer?.fullName || currentOfficer?.FullName || 'Sarah Johnson'}
             </Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              Claims Officer
+            <Text type="secondary" className="user-email">
+              {currentOfficer?.email || currentOfficer?.Email || 'Signed in officer user'}
             </Text>
           </div>
         </div>
         
-        <div style={{ 
-          flex: 1, 
-          padding: '0 16px', 
-          display: 'flex', 
-          flexDirection: 'column',
-          overflowY: 'auto'
-        }}>
-          <div style={{ marginBottom: 8, marginTop: 16 }}>
-            <Text type="secondary" style={{ 
-              fontSize: 11, 
-              fontWeight: 600, 
-              letterSpacing: 0.8,
-              paddingLeft: 16,
-            }}>
+        <div className="sidebar-content">
+          <Divider plain orientation="left">
+            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8 }}>
               MAIN MENU
             </Text>
-          </div>
-          
-          {buildOfficerNavItem({
-            icon: <DashboardOutlined />,
-            title: 'Dashboard',
-            subtitle: 'Overview & statistics',
-            index: 0,
-            isSelected: selectedIndex === 0
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <FlagOutlined />,
-            title: 'Manual Review',
-            subtitle: 'Review flagged claims',
-            index: 1,
-            isSelected: selectedIndex === 1
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <ClockCircleOutlined />,
-            title: 'Pending Claims',
-            subtitle: 'Process new submissions',
-            index: 2,
-            isSelected: selectedIndex === 2
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <CheckCircleOutlined />,
-            title: 'Approved Claims',
-            subtitle: 'View approved claims',
-            index: 3,
-            isSelected: selectedIndex === 3
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <SecurityScanOutlined />,
-            title: 'Suspicious Claims',
-            subtitle: 'Fraud detection & review',
-            index: 4,
-            isSelected: selectedIndex === 4
-          })}
-          
-          <div style={{ marginTop: 16, marginBottom: 8 }}>
-            <Text type="secondary" style={{ 
-              fontSize: 11, 
-              fontWeight: 600, 
-              letterSpacing: 0.8,
-              paddingLeft: 16,
-            }}>
+          </Divider>
+          <Menu mode="inline" selectedKeys={[String(selectedIndex)]} className="main-menu">
+            <Menu.Item key="0" icon={<DashboardOutlined />} onClick={() => setSelectedIndex(0)}>
+              <span>Dashboard</span>
+            </Menu.Item>
+          </Menu>
+
+          <Divider plain orientation="left">
+            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8 }}>
+              CUSTOMER
+            </Text>
+          </Divider>
+          <Menu mode="inline" selectedKeys={[String(selectedIndex)]} className="main-menu">
+            <Menu.Item key="1" icon={<UnorderedListOutlined />} onClick={() => setSelectedIndex(1)}>
+              <span>All Claims</span>
+            </Menu.Item>
+            <Menu.Item key="2" icon={<ClockCircleOutlined />} onClick={() => setSelectedIndex(2)}>
+              <span>Manual Review</span>
+            </Menu.Item>
+            <Menu.Item key="3" icon={<SecurityScanOutlined />} onClick={() => setSelectedIndex(3)}>
+              <span>Suspicious Claims</span>
+            </Menu.Item>
+          </Menu>
+
+          <Divider plain orientation="left">
+            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8 }}>
+              PANEL WORKSHOP
+            </Text>
+          </Divider>
+          <Menu mode="inline" selectedKeys={[String(selectedIndex)]} className="main-menu">
+            <Menu.Item key="4" icon={<ToolOutlined />} onClick={() => setSelectedIndex(4)}>
+              <span>All Submissions</span>
+            </Menu.Item>
+            <Menu.Item key="5" icon={<FlagOutlined />} onClick={() => setSelectedIndex(5)}>
+              <span>Manual Review</span>
+            </Menu.Item>
+          </Menu>
+
+          <Divider plain orientation="left">
+            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8 }}>
               TOOLS & REPORTS
             </Text>
-          </div>
-          
-          {buildOfficerNavItem({
-            icon: <UnorderedListOutlined />,
-            title: 'All Claims',
-            subtitle: 'View all submitted claims',
-            index: 5,
-            isSelected: selectedIndex === 5
-          })}
-
-          {buildOfficerNavItem({
-            icon: <AreaChartOutlined />,
-            title: 'Reports',
-            subtitle: 'Analytics & statistics',
-            index: 6,
-            isSelected: selectedIndex === 6
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <RadarChartOutlined />,
-            title: 'Track Validation',
-            subtitle: 'Monitor validation process',
-            index: 7,
-            isSelected: selectedIndex === 7
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <NotificationOutlined />,
-            title: 'Notification Audit',
-            subtitle: 'System alerts & logs',
-            index: 8,
-            isSelected: selectedIndex === 8
-          })}
-          
-          {buildOfficerNavItem({
-            icon: <DollarOutlined />,
-            title: 'Payment Monitoring',
-            subtitle: 'Track claim payments',
-            index: 9,
-            isSelected: selectedIndex === 9
-          })}
-
-          {buildOfficerNavItem({
-            icon: <UserOutlined />,
-            title: 'Profile',
-            subtitle: 'View your account details',
-            index: 10,
-            isSelected: selectedIndex === 10
-          })}
+          </Divider>
+          <Menu mode="inline" selectedKeys={[String(selectedIndex)]} className="main-menu">
+            <Menu.Item key="6" icon={<RadarChartOutlined />} onClick={() => setSelectedIndex(6)}>
+              <span>Track Validation</span>
+            </Menu.Item>
+            <Menu.Item key="7" icon={<AreaChartOutlined />} onClick={() => setSelectedIndex(7)}>
+              <span>Reports</span>
+            </Menu.Item>
+            <Menu.Item key="8" icon={<DollarOutlined />} onClick={() => setSelectedIndex(8)}>
+              <span>Payment Monitoring</span>
+            </Menu.Item>
+            <Menu.Item key="9" icon={<NotificationOutlined />} onClick={() => setSelectedIndex(9)}>
+              <span>Notification Audit</span>
+            </Menu.Item>
+          </Menu>
         </div>
         
-        <div style={{ 
-          padding: '16px', 
-          borderTop: '1px solid #f0f0f0',
-        }}>
+        <div className="sign-out-container">
           <Button 
+            className="sign-out-button"
             icon={<LogoutOutlined />} 
             block
             onClick={() => {
@@ -395,8 +463,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       </Sider>
       
       <Layout style={{ marginLeft: 280 }}>
-        <Header style={{ 
-          background: '#fff', 
+        <Header className="portal-dashboard-header" style={{ 
           padding: '0 24px',
           display: 'flex',
           alignItems: 'center',
@@ -414,7 +481,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
           </Badge>
         </Header>
         
-        <Content style={{ margin: '24px', background: '#fff', minHeight: 280 }}>
+        <Content className="portal-dashboard-page" style={{ margin: '24px', minHeight: 280 }}>
           {renderContent()}
         </Content>
       </Layout>
@@ -422,18 +489,56 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
   );
 }
 
+function buildDashboardMetricCard({ title, value, subtitle, icon, color, background }) {
+  return (
+    <Card
+      className="portal-dashboard-stat"
+      style={{
+        borderRadius: 24,
+        border: '1px solid #e2e8f0',
+        background,
+        boxShadow: '0 12px 28px rgba(15, 23, 42, 0.06)',
+      }}
+      bodyStyle={{ padding: 20 }}
+    >
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
+        <div>
+          <Text style={{ color: '#475569', display: 'block', marginBottom: 6 }}>{title}</Text>
+          <Title level={3} style={{ margin: 0, color }}>{value}</Title>
+          <Text type="secondary" style={{ fontSize: 12 }}>{subtitle}</Text>
+        </div>
+        <div style={{ width: 48, height: 48, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', color, boxShadow: '0 10px 22px rgba(255,255,255,0.55)' }}>
+          {React.cloneElement(icon, { style: { fontSize: 22 } })}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function getDashboardStatusColor(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'approved') return '#16a34a';
+  if (normalized === 'rejected') return '#dc2626';
+  if (normalized.includes('manual review')) return '#f97316';
+  if (normalized.includes('customer action')) return '#9333ea';
+  if (normalized.includes('pending')) return '#2563eb';
+  return '#64748b';
+}
+
+function formatDashboardDate(value) {
+  const date = new Date(value || Date.now());
+  if (Number.isNaN(date.getTime())) {
+    return 'Unknown date';
+  }
+
+  return date.toLocaleDateString('en-MY', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
 export default ClaimOfficerDashboard;
-
-
-
-
-
-
-
-
-
-
-
 
 
 

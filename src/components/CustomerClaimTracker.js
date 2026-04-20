@@ -98,7 +98,7 @@ function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
                 <Text strong>{claim.id}</Text>
                 <Tag color={getStatusColor(claim.status)}>{claim.status}</Tag>
                 <Tag color={claim.isStpApproved ? 'green' : 'orange'}>
-                  {claim.isStpApproved ? 'STP Passed' : 'Manual Review'}
+                  {claim.isStpApproved ? 'Approved' : 'Under Review'}
                 </Tag>
                 {claim.reviewStatus ? <Tag color="blue">{formatReviewStatus(claim.reviewStatus)}</Tag> : null}
               </Space>
@@ -286,7 +286,7 @@ function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
             type="info"
             showIcon
             message="Approved claim required"
-            description="Panel workshop booking is available only after STP approval or officer approval."
+            description="Panel workshop booking is available only after claim approval."
           />
 
           <Select
@@ -558,7 +558,9 @@ function getNextAction(claim) {
         ? claim.workshopAppointment
           ? 'Your workshop booking is saved. You can update it if needed.'
           : 'Your claim is approved. Choose a panel workshop date and time.'
-        : 'Your claim has been approved.';
+        : claim.workshopRepairEstimate
+          ? 'Your quotation has been submitted, so workshop booking details cannot be changed here.'
+          : 'Your claim has been approved.';
     case 'rejected':
       return 'Your claim has been rejected.';
     default:
@@ -567,7 +569,12 @@ function getNextAction(claim) {
 }
 
 function canBookWorkshop(claim) {
-  return claim.status === 'Approved' && Number(claim.allClaimType) === 1;
+  const isApprovedClaim = claim.status === 'Approved' && Number(claim.allClaimType) === 1;
+  const hasSubmittedEstimate = Boolean(claim.workshopRepairEstimate);
+
+  // Allow booking only for approved claim types, and only when no workshop quotation has been sent.
+  // If a quotation exists, the customer should no longer update the workshop booking here.
+  return isApprovedClaim && !hasSubmittedEstimate;
 }
 
 function formatReviewStatus(status) {

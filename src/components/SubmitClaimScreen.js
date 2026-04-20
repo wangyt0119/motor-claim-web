@@ -13,7 +13,9 @@ import {
   CheckOutlined,
   CheckCircleOutlined,
   FileTextOutlined,
-  FolderOutlined
+  FolderOutlined,
+  EyeOutlined,
+  CloseOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { getMyCoverages } from '../services/coverageService';
@@ -36,6 +38,7 @@ function SubmitClaimScreen({ onSubmit }) {
   const [submitError, setSubmitError] = useState('');
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [submittedClaimData, setSubmittedClaimData] = useState(null);
+  const [samplePreview, setSamplePreview] = useState(null);
 
   const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024;
 
@@ -43,31 +46,101 @@ function SubmitClaimScreen({ onSubmit }) {
       {
         title: 'Core Documents',
         documents: [
-          { key: 'policeReport', label: 'Police report' },
-          { key: 'registrationCard', label: 'Registration card / Vehicle ownership certificate' }
+          {
+            key: 'policeReport',
+            label: 'Police report',
+            sample: {
+              title: 'SAMPLE POLICE REPORT',
+              imagePath: '/assets/sample-police-report.jpg',
+            },
+          },
+          {
+            key: 'registrationCard',
+            label: 'Registration card / Vehicle ownership certificate',
+            sample: {
+              title: 'SAMPLE REGISTRATION CARD',
+              imagePath: '/assets/sample-registration-card.jpg',
+            },
+          }
         ]
       },
       {
         title: 'NRIC/Passport/Army/Police ID',
         documents: [
-          { key: 'idFront', label: 'NRIC/Passport/Army/Police ID (Front)' },
-          { key: 'idBack', label: 'NRIC/Passport/Army/Police ID (Back)' }
+          {
+            key: 'idFront',
+            label: 'NRIC/Passport/Army/Police ID (Front)',
+            sample: {
+              title: 'SAMPLE NRIC',
+              imagePath: '/assets/sample-ic.jpg',
+            },
+          },
+          {
+            key: 'idBack',
+            label: 'NRIC/Passport/Army/Police ID (Back)',
+            sample: {
+              title: 'SAMPLE NRIC',
+              imagePath: '/assets/sample-ic.jpg',
+            },
+          }
         ]
       },
       {
         title: 'Driving License',
         documents: [
-          { key: 'licenseFront', label: 'Driving license (Front)' },
-          { key: 'licenseBack', label: 'Driving License (Back)' }
+          {
+            key: 'licenseFront',
+            label: 'Driving license (Front)',
+            sample: {
+              title: 'SAMPLE DRIVING LICENSE',
+              imagePath: '/assets/sample-driving-license.jpg',
+            },
+          },
+          {
+            key: 'licenseBack',
+            label: 'Driving License (Back)',
+            sample: {
+              title: 'SAMPLE DRIVING LICENSE',
+              imagePath: '/assets/sample-driving-license.jpg',
+            },
+          }
         ]
       },
       {
         title: 'Vehicle Damages',
         documents: [
-          { key: 'damageFrontLeft', label: 'Vehicle damages (Front left)' },
-          { key: 'damageFrontRight', label: 'Vehicle damages (Front right)' },
-          { key: 'damageRearLeft', label: 'Vehicle damages (Rear left)' },
-          { key: 'damageRearRight', label: 'Vehicle damages (Rear right)' }
+          {
+            key: 'damageFrontLeft',
+            label: 'Vehicle damages (Front left)',
+            sample: {
+              title: 'SAMPLE VEHICLE DAMAGE (FRONT LEFT)',
+              imagePath: '/assets/sample-front-left.jpg',
+            },
+          },
+          {
+            key: 'damageFrontRight',
+            label: 'Vehicle damages (Front right)',
+            sample: {
+              title: 'SAMPLE VEHICLE DAMAGE (FRONT RIGHT)',
+              imagePath: '/assets/sample-front-right.jpg',
+            },
+          },
+          {
+            key: 'damageRearLeft',
+            label: 'Vehicle damages (Rear left)',
+            sample: {
+              title: 'SAMPLE VEHICLE DAMAGE (REAR LEFT)',
+              imagePath: '/assets/sample-rear-left.jpg',
+            },
+          },
+          {
+            key: 'damageRearRight',
+            label: 'Vehicle damages (Rear right)',
+            sample: {
+              title: 'SAMPLE VEHICLE DAMAGE (REAR RIGHT)',
+              imagePath: '/assets/sample-rear-right.jpg',
+            },
+          }
         ]
       }
   ];
@@ -564,24 +637,26 @@ function SubmitClaimScreen({ onSubmit }) {
               key={section.title}
               style={{
                 marginBottom: sectionIndex === documentSections.length - 1 ? 0 : 16,
-                border: '1px solid #f0f0f0',
+                border: '1px solid #e0c29c',
                 borderRadius: 10,
-                overflow: 'hidden'
+                overflow: 'hidden',
+                boxShadow: '0 4px 14px rgba(191, 125, 61, 0.08)',
+                backgroundColor: '#fffdfa',
               }}
             >
               <div
                 style={{
-                  backgroundColor: '#fafafa',
-                  borderBottom: '1px solid #f0f0f0',
+                  background: 'linear-gradient(135deg, #f7e2ca 0%, #f2d3b3 100%)',
+                  borderBottom: '1px solid #e0c29c',
                   padding: '10px 14px'
                 }}
               >
-                <Text strong style={{ fontSize: 14, color: '#333' }}>
+                <Text strong style={{ fontSize: 14, color: '#8a4b14', letterSpacing: 0.2 }}>
                   {section.title}
                 </Text>
               </div>
 
-              <div style={{ padding: '4px 14px' }}>
+              <div style={{ padding: '4px 14px', backgroundColor: '#fffdfa' }}>
                 {section.documents.map((doc, docIndex) => {
                   const uploadedFile = (documentFiles[doc.key] || [])[0];
                   return (
@@ -593,11 +668,37 @@ function SubmitClaimScreen({ onSubmit }) {
                         justifyContent: 'space-between',
                         gap: 12,
                         padding: '10px 0',
-                        borderBottom: docIndex === section.documents.length - 1 ? 'none' : '1px solid #f5f5f5'
+                        borderBottom: docIndex === section.documents.length - 1 ? 'none' : '1px solid #f0dfcd'
                       }}
                     >
                       <div style={{ minWidth: 0 }}>
-                        <Text strong>{doc.label}</Text>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                          }}
+                        >
+                          <Text strong style={{ paddingRight: 8 }}>
+                            {doc.label}
+                          </Text>
+                          {doc.sample ? (
+                            <Button
+                              type="link"
+                              icon={<EyeOutlined />}
+                              onClick={() => setSamplePreview(doc.sample)}
+                              style={{
+                                padding: 0,
+                                height: 'auto',
+                                fontSize: 13,
+                                flexShrink: 0,
+                              }}
+                            >
+                              View Sample
+                            </Button>
+                          ) : null}
+                        </div>
                         <div>
                           <Text
                             type={uploadedFile ? 'secondary' : 'danger'}
@@ -847,6 +948,63 @@ function SubmitClaimScreen({ onSubmit }) {
                   {submittedClaimData.id}
                 </Text>
               </div>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(samplePreview)}
+        title={null}
+        footer={null}
+        centered
+        width={760}
+        closeIcon={<CloseOutlined style={{ fontSize: 18, position: 'relative', top: -4 }} />}
+        onCancel={() => setSamplePreview(null)}
+      >
+        <div style={{ padding: '8px 4px' }}>
+          <div
+            style={{
+              padding: '14px 16px',
+              borderRadius: 12,
+              background: '#fff7e6',
+              border: '1px solid #ffd591',
+              marginBottom: 20,
+            }}
+          >
+            <Text strong style={{ display: 'block', color: '#d46b08', marginBottom: 6 }}>
+              Important Note
+            </Text>
+            <Text style={{ color: '#8c4a00', lineHeight: 1.7 }}>
+              Before you proceed, do ensure that you have indicated "Submitted to Etiqa" in handwriting clearly on your original receipts.
+            </Text>
+          </div>
+
+          <Title level={4} style={{ textAlign: 'center', marginBottom: 20 }}>
+            {samplePreview?.title}
+          </Title>
+
+          {samplePreview?.imagePath ? (
+            <div
+              style={{
+                borderRadius: 16,
+                overflow: 'hidden',
+                border: '1px solid #f0f0f0',
+                backgroundColor: '#fafafa',
+                textAlign: 'center',
+              }}
+            >
+              <img
+                src={samplePreview.imagePath}
+                alt={samplePreview.title}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  height: 'auto',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                }}
+              />
             </div>
           ) : null}
         </div>

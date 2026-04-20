@@ -4,12 +4,13 @@ import {
   Button,
   Card,
   DatePicker,
+  Divider,
   Empty,
   Input,
   Layout,
+  Menu,
   Select,
   Space,
-  Statistic,
   Table,
   Tag,
   Typography,
@@ -26,12 +27,12 @@ import {
   UserOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
+import '../styles/MainScreen.css';
 import {
   exportSystemMonitoringLogs,
   getSystemMonitoringDashboard,
   getSystemMonitoringLogs,
 } from '../services/adminService';
-import ProfileScreen from './ProfileScreen';
 
 const { Header, Sider, Content } = Layout;
 const { Title, Text } = Typography;
@@ -125,6 +126,21 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     return Array.from(modules).sort().map((module) => ({ label: module, value: module }));
   }, [dashboard, logs]);
 
+  const successRate = useMemo(() => {
+    const total = Number(dashboard?.totalRequests || 0);
+    const success = Number(dashboard?.successfulRequests || 0);
+    return total > 0 ? Math.round((success / total) * 100) : 0;
+  }, [dashboard]);
+
+  const topModule = useMemo(() => {
+    const items = dashboard?.moduleUsage || [];
+    if (!items.length) {
+      return null;
+    }
+
+    return [...items].sort((left, right) => Number(right.requestCount || 0) - Number(left.requestCount || 0))[0];
+  }, [dashboard]);
+
   const logColumns = [
     {
       title: 'Time',
@@ -175,28 +191,9 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     },
   ];
 
-  function buildNavItem({ index, title, subtitle }) {
-    return (
-      <div
-        style={{
-          padding: '12px 16px',
-          margin: '6px 12px',
-          borderRadius: 8,
-          cursor: 'pointer',
-          background: selectedIndex === index ? '#FF6600' : 'transparent',
-          color: selectedIndex === index ? '#fff' : 'inherit',
-        }}
-        onClick={() => setSelectedIndex(index)}
-      >
-        <div style={{ fontWeight: 600 }}>{title}</div>
-        <div style={{ fontSize: 12, opacity: selectedIndex === index ? 0.9 : 0.65 }}>{subtitle}</div>
-      </div>
-    );
-  }
-
   function renderDashboardContent() {
     if (loadingDashboard && !dashboard) {
-      return <Card loading style={{ borderRadius: 12 }} />;
+      return <Card loading className="portal-dashboard-card" />;
     }
 
     if (!dashboard) {
@@ -204,48 +201,153 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     }
 
     return (
-      <Space direction="vertical" size={24} style={{ width: '100%' }}>
-        <div>
-          <Title level={2} style={{ marginBottom: 6 }}>System Monitoring</Title>
-          <Text type="secondary">Review live usage patterns, request health, and recent system activity across the platform.</Text>
+      <div className="portal-dashboard-stack">
+        <div className="portal-dashboard-hero">
+          <div className="portal-dashboard-hero-content">
+            <span className="portal-dashboard-kicker">Admin Control</span>
+            <Title level={2} className="portal-dashboard-title">
+            Welcome back, {currentAdmin?.fullName || currentAdmin?.FullName || 'Admin'}
+            </Title>
+            <Text className="portal-dashboard-description">
+              Review live usage patterns, request health, and recent system activity across the platform in one monitoring dashboard.
+            </Text>
+
+            <div className="portal-dashboard-chip-row">
+              <div className="portal-dashboard-chip">
+                <span className="portal-dashboard-chip-label">Success Rate</span>
+                <span className="portal-dashboard-chip-value">{successRate}%</span>
+              </div>
+              <div className="portal-dashboard-chip">
+                <span className="portal-dashboard-chip-label">Top Module</span>
+                <span className="portal-dashboard-chip-value">{topModule?.module || 'N/A'}</span>
+              </div>
+              <div className="portal-dashboard-chip">
+                <span className="portal-dashboard-chip-label">Live Logs</span>
+                <span className="portal-dashboard-chip-value">{(dashboard?.recentLogs || []).length}</span>
+              </div>
+            </div>
+          </div>
         </div>
 
-        <Space wrap size={16}>
-          <Card style={{ borderRadius: 12, minWidth: 220 }}>
-            <Statistic title="Total Requests" value={dashboard.totalRequests} prefix={<AreaChartOutlined />} />
-          </Card>
-          <Card style={{ borderRadius: 12, minWidth: 220 }}>
-            <Statistic title="Successful Requests" value={dashboard.successfulRequests} valueStyle={{ color: '#16a34a' }} prefix={<SafetyCertificateOutlined />} />
-          </Card>
-          <Card style={{ borderRadius: 12, minWidth: 220 }}>
-            <Statistic title="Failed Requests" value={dashboard.failedRequests} valueStyle={{ color: '#dc2626' }} prefix={<FileSearchOutlined />} />
-          </Card>
-          <Card style={{ borderRadius: 12, minWidth: 220 }}>
-            <Statistic title="Average Duration" value={Math.round(dashboard.averageDurationMs)} suffix="ms" prefix={<ClockCircleOutlined />} />
-          </Card>
-        </Space>
-
-        <Card
-          title="Module Usage"
-          extra={<Button icon={<ReloadOutlined />} onClick={refreshDashboard} loading={loadingDashboard}>Refresh</Button>}
-          style={{ borderRadius: 12 }}
-        >
-          {(dashboard.moduleUsage || []).length ? (
-            <Table
-              dataSource={dashboard.moduleUsage}
-              columns={[
-                { title: 'Module', dataIndex: 'module', key: 'module' },
-                { title: 'Request Count', dataIndex: 'requestCount', key: 'requestCount' },
-              ]}
-              rowKey="module"
-              pagination={false}
+        <div className="portal-dashboard-grid">
+          <div className="portal-dashboard-span-3">
+            <MetricCard
+              label="Total Requests"
+              value={dashboard.totalRequests}
+              subtitle="All traffic in range"
+              icon={<AreaChartOutlined />}
+              accent="#f97316"
+              background="linear-gradient(135deg, #fff3e8 0%, #ffe2ce 100%)"
             />
-          ) : (
-            <Empty description="No module usage data yet." />
-          )}
-        </Card>
+          </div>
+          <div className="portal-dashboard-span-3">
+            <MetricCard
+              label="Successful Requests"
+              value={dashboard.successfulRequests}
+              subtitle="Healthy responses"
+              icon={<SafetyCertificateOutlined />}
+              accent="#16a34a"
+              background="linear-gradient(135deg, #edfdf3 0%, #d6f7e1 100%)"
+            />
+          </div>
+          <div className="portal-dashboard-span-3">
+            <MetricCard
+              label="Failed Requests"
+              value={dashboard.failedRequests}
+              subtitle="Errors to review"
+              icon={<FileSearchOutlined />}
+              accent="#ef4444"
+              background="linear-gradient(135deg, #fff0f0 0%, #ffdede 100%)"
+            />
+          </div>
+          <div className="portal-dashboard-span-3">
+            <MetricCard
+              label="Average Duration"
+              value={`${Math.round(dashboard.averageDurationMs)} ms`}
+              subtitle="Request speed"
+              icon={<ClockCircleOutlined />}
+              accent="#7c3aed"
+              background="linear-gradient(135deg, #f6efff 0%, #ecdeff 100%)"
+            />
+          </div>
+        </div>
 
-        <Card title="Recent Activity" style={{ borderRadius: 12 }}>
+        <div className="portal-dashboard-grid">
+          <div className="portal-dashboard-span-4">
+            <Card className="portal-dashboard-card">
+              <div className="portal-dashboard-card-header">
+                <div>
+                  <Title level={4} className="portal-dashboard-card-title">Health Snapshot</Title>
+                  <Text className="portal-dashboard-card-subtitle">A quick read of current platform behaviour</Text>
+                </div>
+              </div>
+
+              <div className="portal-dashboard-list">
+                <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
+                  <div className="portal-dashboard-list-meta">
+                    <Text strong>Success Rate</Text>
+                    <Text type="secondary">Percentage of requests completed successfully</Text>
+                  </div>
+                  <span className="portal-dashboard-status" style={{ background: '#ecfdf3', color: '#15803d' }}>
+                    {successRate}%
+                  </span>
+                </div>
+                <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
+                  <div className="portal-dashboard-list-meta">
+                    <Text strong>Top Module</Text>
+                    <Text type="secondary">Most active module in the current result set</Text>
+                  </div>
+                  <span className="portal-dashboard-status" style={{ background: '#eef4ff', color: '#1d4ed8' }}>
+                    {topModule?.module || 'No data'}
+                  </span>
+                </div>
+                <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
+                  <div className="portal-dashboard-list-meta">
+                    <Text strong>Recent Activity</Text>
+                    <Text type="secondary">Logs currently shown on the dashboard</Text>
+                  </div>
+                  <span className="portal-dashboard-status" style={{ background: '#fff4ea', color: '#ea580c' }}>
+                    {(dashboard.recentLogs || []).length} logs
+                  </span>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          <div className="portal-dashboard-span-8">
+            <Card className="portal-dashboard-card">
+              <div className="portal-dashboard-card-header">
+                <div>
+                  <Title level={4} className="portal-dashboard-card-title">Module Usage</Title>
+                  <Text className="portal-dashboard-card-subtitle">Which areas of the system are being used the most</Text>
+                </div>
+                <Button icon={<ReloadOutlined />} onClick={refreshDashboard} loading={loadingDashboard}>Refresh</Button>
+              </div>
+
+              {(dashboard.moduleUsage || []).length ? (
+                <Table
+                  dataSource={dashboard.moduleUsage}
+                  columns={[
+                    { title: 'Module', dataIndex: 'module', key: 'module' },
+                    { title: 'Request Count', dataIndex: 'requestCount', key: 'requestCount' },
+                  ]}
+                  rowKey="module"
+                  pagination={false}
+                />
+              ) : (
+                <Empty className="portal-dashboard-empty" description="No module usage data yet." />
+              )}
+            </Card>
+          </div>
+        </div>
+
+        <Card className="portal-dashboard-card">
+          <div className="portal-dashboard-card-header">
+            <div>
+              <Title level={4} className="portal-dashboard-card-title">Recent Activity</Title>
+              <Text className="portal-dashboard-card-subtitle">Latest requests and system actions across the platform</Text>
+            </div>
+          </div>
           <Table
             dataSource={dashboard.recentLogs || []}
             columns={logColumns}
@@ -254,20 +356,21 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
             scroll={{ x: 1200 }}
           />
         </Card>
-      </Space>
+      </div>
     );
   }
 
   function renderLogsContent() {
     return (
-      <Space direction="vertical" size={16} style={{ width: '100%' }}>
+      <div className="portal-dashboard-stack">
         <div>
           <Title level={2} style={{ marginBottom: 6 }}>Activity Logs</Title>
           <Text type="secondary">Filter system logs by date, module, role, or user to investigate usage and failures.</Text>
         </div>
 
-        <Card style={{ borderRadius: 12 }}>
-          <Space wrap size={12}>
+        <Card className="portal-dashboard-card">
+          <div className="portal-dashboard-toolbar">
+            <div className="portal-dashboard-toolbar-main">
             <RangePicker showTime value={dateRange} onChange={(value) => setDateRange(value || [])} />
             <Select allowClear placeholder="Module" style={{ width: 180 }} options={moduleOptions} value={moduleFilter || undefined} onChange={(value) => setModuleFilter(value || '')} />
             <Select
@@ -284,12 +387,15 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
               onChange={(value) => setUserRoleFilter(value || '')}
             />
             <Input placeholder="User ID" style={{ width: 220 }} value={userIdFilter} onChange={(event) => setUserIdFilter(event.target.value)} />
+            </div>
+            <div className="portal-dashboard-toolbar-main">
             <Button type="primary" onClick={refreshLogs} loading={loadingLogs}>Apply Filters</Button>
             <Button icon={<DownloadOutlined />} onClick={handleExportLogs} loading={exportingLogs}>Export CSV</Button>
-          </Space>
+            </div>
+          </div>
         </Card>
 
-        <Card style={{ borderRadius: 12 }}>
+        <Card className="portal-dashboard-card">
           <Table
             dataSource={logs}
             columns={logColumns}
@@ -300,43 +406,79 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
             locale={{ emptyText: <Empty description="No monitoring logs found for the selected filters." /> }}
           />
         </Card>
-      </Space>
+      </div>
     );
   }
 
   return (
     <Layout style={{ minHeight: '100vh' }}>
-      <Sider width={280} theme="light" style={{ boxShadow: '0 0 10px rgba(0,0,0,0.08)' }}>
-        <div style={{ padding: '24px 16px', borderBottom: '1px solid #f0f0f0' }}>
+      <Sider width={280} theme="light" style={{ boxShadow: '0 0 10px rgba(0,0,0,0.08)', display: 'flex', flexDirection: 'column' }}>
+        <div className="logo-container">
           <img src="/assets/etiqalogo.png" alt="Etiqa Logo" style={{ height: 40 }} />
         </div>
-        <div style={{ padding: 16, borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
+        <div className="user-info">
           <Avatar size={40} icon={<UserOutlined />} style={{ backgroundColor: '#FF6600' }} />
-          <div style={{ marginLeft: 12 }}>
-            <Text strong style={{ display: 'block' }}>{currentAdmin?.fullName || currentAdmin?.FullName || 'Admin'}</Text>
-            <Text type="secondary" style={{ fontSize: 12 }}>{currentAdmin?.email || currentAdmin?.Email || 'System administrator'}</Text>
+          <div className="user-details">
+            <Text strong className="user-name">{currentAdmin?.fullName || currentAdmin?.FullName || 'Admin'}</Text>
+            <Text type="secondary" className="user-email">{currentAdmin?.email || currentAdmin?.Email || 'System administrator'}</Text>
           </div>
         </div>
-        <div style={{ paddingTop: 12 }}>
-          {buildNavItem({ index: 0, title: 'Monitoring', subtitle: 'System health and usage' })}
-          {buildNavItem({ index: 1, title: 'Logs', subtitle: 'Activity logs and export' })}
-          {buildNavItem({ index: 2, title: 'Profile', subtitle: 'Your admin account details' })}
+        <div className="sidebar-content">
+          <Divider plain orientation="left">
+            <Text type="secondary" style={{ fontSize: 11, fontWeight: 600, letterSpacing: 0.8 }}>
+              MAIN MENU
+            </Text>
+          </Divider>
+          <Menu mode="inline" selectedKeys={[String(selectedIndex)]} className="main-menu">
+            <Menu.Item key="0" icon={<AreaChartOutlined />} onClick={() => setSelectedIndex(0)}>
+              <span>Monitoring</span>
+            </Menu.Item>
+            <Menu.Item key="1" icon={<FileSearchOutlined />} onClick={() => setSelectedIndex(1)}>
+              <span>Logs</span>
+            </Menu.Item>
+          </Menu>
         </div>
-        <div style={{ padding: 16, marginTop: 'auto' }}>
-          <Button icon={<LogoutOutlined />} block onClick={onSignOut}>Sign Out</Button>
+        <div className="sign-out-container">
+          <Button className="sign-out-button" icon={<LogoutOutlined />} block onClick={onSignOut}>Sign Out</Button>
         </div>
       </Sider>
       <Layout>
-        <Header style={{ background: '#fff', borderBottom: '1px solid #f0f0f0', display: 'flex', alignItems: 'center' }}>
-          <Title level={3} style={{ margin: 0 }}>Admin Portal</Title>
-        </Header>
-        <Content style={{ padding: 24 }}>
+        <Header className="portal-dashboard-header" />
+        <Content className="portal-dashboard-page">
           {selectedIndex === 0 ? renderDashboardContent() : null}
           {selectedIndex === 1 ? renderLogsContent() : null}
-          {selectedIndex === 2 ? <ProfileScreen heading="Admin Profile" description="Review and update your administrator account details." /> : null}
         </Content>
       </Layout>
     </Layout>
+  );
+}
+
+function MetricCard({ label, value, subtitle, icon, accent, background }) {
+  return (
+    <Card className="portal-dashboard-stat" style={{ background }}>
+      <Space direction="vertical" size={8} style={{ width: '100%' }}>
+        <Space size={12} align="center">
+          <span
+            style={{
+              width: 44,
+              height: 44,
+              borderRadius: 16,
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              background: '#fff',
+              color: accent,
+              boxShadow: '0 10px 22px rgba(255,255,255,0.46)',
+            }}
+          >
+            {React.cloneElement(icon, { style: { fontSize: 20 } })}
+          </span>
+          <span className="portal-dashboard-stat-label">{label}</span>
+        </Space>
+        <Text className="portal-dashboard-stat-value">{value}</Text>
+        <Text className="portal-dashboard-stat-subtitle">{subtitle}</Text>
+      </Space>
+    </Card>
   );
 }
 
@@ -354,3 +496,4 @@ function buildMonitoringParams({ dateRange = [], module = null, userRole = null,
 }
 
 export default AdminDashboard;
+

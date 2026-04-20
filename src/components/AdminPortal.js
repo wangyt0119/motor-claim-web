@@ -4,6 +4,7 @@ import AdminAuthScreen from './AdminAuthScreen';
 import AdminDashboard from './AdminDashboard';
 import { clearAdminSession, getAdminSession, saveAdminSession } from '../utils/adminAuthStorage';
 import { USER_ROLE, normalizeRole } from '../constants/userRoles';
+import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
 function AdminPortal() {
   const [session, setSession] = useState(() => getAdminSession());
@@ -16,7 +17,7 @@ function AdminPortal() {
   const handleAuthenticated = (newSession) => {
     saveAdminSession(newSession);
     setSession(newSession);
-    window.location.replace('/admin');
+    window.location.replace(getPortalPath(PORTAL_KEYS.ADMIN, '/dashboard'));
   };
 
   const handleSignOut = () => {
@@ -29,12 +30,25 @@ function AdminPortal() {
     <Routes>
       <Route
         index
-        element={<Navigate to={isAuthenticated ? '/admin/dashboard' : '/admin/auth'} replace />}
+        element={
+          <Navigate
+            to={
+              isAuthenticated
+                ? getPortalPath(PORTAL_KEYS.ADMIN, '/dashboard')
+                : getPortalPath(PORTAL_KEYS.ADMIN, '/auth')
+            }
+            replace
+          />
+        }
       />
       <Route
         path="auth"
         element={
-          isAuthenticated ? <Navigate to="/admin/dashboard" replace /> : <AdminAuthScreen onAuthenticated={handleAuthenticated} />
+          isAuthenticated ? (
+            <Navigate to={getPortalPath(PORTAL_KEYS.ADMIN, '/dashboard')} replace />
+          ) : (
+            <AdminAuthScreen onAuthenticated={handleAuthenticated} />
+          )
         }
       />
       <Route
@@ -43,7 +57,7 @@ function AdminPortal() {
           isAuthenticated ? (
             <AdminDashboard currentAdmin={session?.user} onSignOut={handleSignOut} />
           ) : (
-            <Navigate to="/admin/auth" replace />
+            <Navigate to={getPortalPath(PORTAL_KEYS.ADMIN, '/auth')} replace />
           )
         }
       />

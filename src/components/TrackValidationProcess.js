@@ -1,20 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Card, Typography, Table, Tag, Button, Space, Input, 
-  Row, Col, Select, Progress, Badge, Tooltip, Divider,
-  Empty, Modal, Steps, Timeline, Tabs, List, Avatar
+  Row, Col, Select, Progress, Badge,
+  Empty, Modal, Steps, Timeline, List, Avatar, Spin
 } from 'antd';
 import { 
   SearchOutlined, 
   ClearOutlined, 
   EyeOutlined, 
-  HistoryOutlined,
   CheckCircleOutlined, 
-  CloseCircleOutlined, 
   WarningOutlined,
   LoadingOutlined,
   BarChartOutlined,
-  FileTextOutlined,
   QuestionCircleOutlined,
   FolderOutlined,
   FilePdfOutlined,
@@ -32,7 +29,6 @@ const { Title, Text, Paragraph } = Typography;
 const { Search } = Input;
 const { Option } = Select;
 const { Step } = Steps;
-const { TabPane } = Tabs;
 
 // Helper function to create validation claim data
 const createValidationClaim = ({
@@ -69,115 +65,35 @@ const createValidationEvent = (title, date) => ({
   date
 });
 
-function TrackValidationProcess() {
+function TrackValidationProcess({ claims = [], loading = false, onRefresh = null }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatusFilter, setSelectedStatusFilter] = useState('All');
   const [selectedAIFilter, setSelectedAIFilter] = useState('All');
   const [selectedDateFilter, setSelectedDateFilter] = useState('All');
-  const [filteredClaims, setFilteredClaims] = useState([]);
   const [detailsModalVisible, setDetailsModalVisible] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState(null);
 
-  // Sample validation data
-  const validationClaims = [
-    createValidationClaim({
-      claimId: 'CLM001',
-      submissionDate: moment().subtract(2, 'hours').toDate(),
-      documentStatus: 'Complete',
-      aiAssessment: 'Valid',
-      policyStatus: 'Active',
-      routingStatus: 'Approved - STP',
-      currentStep: 5,
-      totalSteps: 5,
-      documents: ['police_report.pdf', 'vehicle_photos.jpg', 'insurance_cert.pdf'],
-      aiSummary: 'Minor front bumper damage detected. Estimated repair cost: RM 2,500',
-      policyInfo: 'Policy POL-78901234 - Active until Dec 2024',
-      timeline: [
-        createValidationEvent('Submitted', moment().subtract(2, 'hours').toDate()),
-        createValidationEvent('Document Check', moment().subtract(2, 'hours').subtract(5, 'minutes').toDate()),
-        createValidationEvent('AI Analysis', moment().subtract(1, 'hours').subtract(45, 'minutes').toDate()),
-        createValidationEvent('Policy Check', moment().subtract(1, 'hours').subtract(30, 'minutes').toDate()),
-        createValidationEvent('Routed', moment().subtract(1, 'hours').subtract(15, 'minutes').toDate()),
-      ],
-    }),
-    createValidationClaim({
-      claimId: 'CLM002',
-      submissionDate: moment().subtract(4, 'hours').toDate(),
-      documentStatus: 'Incomplete',
-      aiAssessment: 'Pending',
-      policyStatus: 'Active',
-      routingStatus: 'Manual Review - Missing Documents',
-      currentStep: 2,
-      totalSteps: 5,
-      documents: ['police_report.pdf'],
-      aiSummary: 'Pending - Insufficient documents for analysis',
-      policyInfo: 'Policy POL-12345678 - Active until Mar 2025',
-      timeline: [
-        createValidationEvent('Submitted', moment().subtract(4, 'hours').toDate()),
-        createValidationEvent('Document Check', moment().subtract(3, 'hours').subtract(55, 'minutes').toDate()),
-      ],
-    }),
-    createValidationClaim({
-      claimId: 'CLM003',
-      submissionDate: moment().subtract(6, 'hours').toDate(),
-      documentStatus: 'Complete',
-      aiAssessment: 'Inconclusive',
-      policyStatus: 'Active',
-      routingStatus: 'Manual Review - AI Inconclusive',
-      currentStep: 4,
-      totalSteps: 5,
-      documents: ['police_report.pdf', 'vehicle_photos.jpg', 'insurance_cert.pdf', 'witness_statement.pdf'],
-      aiSummary: 'Complex damage pattern detected. Manual review required for accurate assessment',
-      policyInfo: 'Policy POL-98765432 - Active until Jun 2024',
-      timeline: [
-        createValidationEvent('Submitted', moment().subtract(6, 'hours').toDate()),
-        createValidationEvent('Document Check', moment().subtract(5, 'hours').subtract(55, 'minutes').toDate()),
-        createValidationEvent('AI Analysis', moment().subtract(5, 'hours').subtract(30, 'minutes').toDate()),
-        createValidationEvent('Policy Check', moment().subtract(5, 'hours').subtract(15, 'minutes').toDate()),
-      ],
-    }),
-    createValidationClaim({
-      claimId: 'CLM004',
-      submissionDate: moment().subtract(8, 'hours').toDate(),
-      documentStatus: 'Complete',
-      aiAssessment: 'Valid',
-      policyStatus: 'Not Covered',
-      routingStatus: 'Manual Review - Policy Not Covered',
-      currentStep: 4,
-      totalSteps: 5,
-      documents: ['police_report.pdf', 'vehicle_photos.jpg', 'insurance_cert.pdf'],
-      aiSummary: 'Rear-end collision damage detected. Estimated repair cost: RM 4,200',
-      policyInfo: 'Policy POL-11223344 - Exclusion: Pre-existing damage clause applies',
-      timeline: [
-        createValidationEvent('Submitted', moment().subtract(8, 'hours').toDate()),
-        createValidationEvent('Document Check', moment().subtract(7, 'hours').subtract(55, 'minutes').toDate()),
-        createValidationEvent('AI Analysis', moment().subtract(7, 'hours').subtract(30, 'minutes').toDate()),
-        createValidationEvent('Policy Check', moment().subtract(7, 'hours').subtract(15, 'minutes').toDate()),
-      ],
-    }),
-    createValidationClaim({
-      claimId: 'CLM005',
-      submissionDate: moment().subtract(30, 'minutes').toDate(),
-      documentStatus: 'Complete',
-      aiAssessment: 'Processing',
-      policyStatus: 'Pending',
-      routingStatus: 'In Progress - AI Analysis',
-      currentStep: 3,
-      totalSteps: 5,
-      documents: ['police_report.pdf', 'vehicle_photos.jpg', 'insurance_cert.pdf'],
-      aiSummary: 'Analysis in progress...',
-      policyInfo: 'Policy verification in progress...',
-      timeline: [
-        createValidationEvent('Submitted', moment().subtract(30, 'minutes').toDate()),
-        createValidationEvent('Document Check', moment().subtract(25, 'minutes').toDate()),
-        createValidationEvent('AI Analysis', moment().subtract(10, 'minutes').toDate()),
-      ],
-    }),
-  ];
+  const validationClaims = useMemo(
+    () => claims.map(mapClaimToValidationClaim),
+    [claims]
+  );
 
-  // Filter claims based on search and filters
-  useEffect(() => {
-    const filtered = validationClaims.filter(claim => {
+  const matchesDateFilter = useCallback((date) => {
+    const now = moment();
+    switch (selectedDateFilter) {
+      case 'Today':
+        return moment(date).isSame(now, 'day');
+      case 'This Week':
+        return moment(now).diff(moment(date), 'days') <= 7;
+      case 'This Month':
+        return moment(date).isSame(now, 'month');
+      default:
+        return true;
+    }
+  }, [selectedDateFilter]);
+
+  const filteredClaims = useMemo(() => {
+    return validationClaims.filter((claim) => {
       const matchesSearch = searchQuery === '' || 
         claim.claimId.toLowerCase().includes(searchQuery.toLowerCase());
       
@@ -192,24 +108,7 @@ function TrackValidationProcess() {
       
       return matchesSearch && matchesStatus && matchesAI && matchesDate;
     });
-    
-    setFilteredClaims(filtered);
-  }, [searchQuery, selectedStatusFilter, selectedAIFilter, selectedDateFilter]);
-
-  // Helper function to match date filter
-  const matchesDateFilter = (date) => {
-    const now = moment();
-    switch (selectedDateFilter) {
-      case 'Today':
-        return moment(date).isSame(now, 'day');
-      case 'This Week':
-        return moment(now).diff(moment(date), 'days') <= 7;
-      case 'This Month':
-        return moment(date).isSame(now, 'month');
-      default:
-        return true;
-    }
-  };
+  }, [matchesDateFilter, searchQuery, selectedStatusFilter, selectedAIFilter, selectedDateFilter, validationClaims]);
 
   // Helper functions for status colors
   const getDocumentStatusColor = (status) => {
@@ -335,7 +234,7 @@ function TrackValidationProcess() {
       ),
     },
     {
-      title: 'AI Assessment',
+      title: 'OCR Assessment',
       dataIndex: 'aiAssessment',
       key: 'aiAssessment',
       render: (status) => (
@@ -414,7 +313,7 @@ function TrackValidationProcess() {
 
     return (
       <Modal
-        visible={detailsModalVisible}
+        open={detailsModalVisible}
         onCancel={() => setDetailsModalVisible(false)}
         footer={null}
         width={1000}
@@ -550,7 +449,7 @@ function TrackValidationProcess() {
             count={validationClaims.length} 
             style={{ backgroundColor: '#4CAF50' }}
           >
-            <Button 
+            <Button
               icon={<BarChartOutlined />} 
               style={{ 
                 backgroundColor: '#E8F5E9', 
@@ -559,6 +458,7 @@ function TrackValidationProcess() {
                 borderRadius: 8,
                 padding: '0 16px'
               }}
+              onClick={() => onRefresh?.()}
             >
               Claims
             </Button>
@@ -609,7 +509,7 @@ function TrackValidationProcess() {
             </Select>
           </Col>
           <Col span={8}>
-            <Text strong style={{ display: 'block', marginBottom: 8 }}>AI Result</Text>
+            <Text strong style={{ display: 'block', marginBottom: 8 }}>OCR Result</Text>
             <Select
               value={selectedAIFilter}
               onChange={(value) => setSelectedAIFilter(value)}
@@ -640,19 +540,197 @@ function TrackValidationProcess() {
 
       {/* Claims Table */}
       <Card style={{ borderRadius: 12 }}>
-        <Table
-          columns={columns}
-          dataSource={filteredClaims}
-          rowKey="claimId"
-          pagination={{ pageSize: 10 }}
-          locale={{ emptyText: renderEmptyState() }}
-        />
+        {loading ? (
+          <div style={{ padding: 48, textAlign: 'center' }}>
+            <Spin size="large" />
+            <div style={{ marginTop: 12 }}>
+              <Text type="secondary">Loading validation data...</Text>
+            </div>
+          </div>
+        ) : (
+          <Table
+            columns={columns}
+            dataSource={filteredClaims}
+            rowKey="claimId"
+            pagination={{ pageSize: 10 }}
+            locale={{ emptyText: renderEmptyState() }}
+          />
+        )}
       </Card>
 
       {/* Claim Details Modal */}
       {renderClaimDetailsModal()}
     </div>
   );
+}
+
+function mapClaimToValidationClaim(claim) {
+  const submissionDate = claim.createdAt || claim.date || claim.incidentDate || new Date();
+  const validation = claim.validationResult || null;
+  const coverage = claim.coverage || null;
+  const documents = (claim.documents || []).map((document) => document.fileName || document.label || 'Document');
+  const policyStatus = resolvePolicyStatus(coverage);
+  const aiAssessment = resolveAiAssessment(claim, validation);
+  const routingStatus = resolveRoutingStatus(claim, validation);
+  const timeline = buildClaimTimeline(claim, validation);
+
+  return createValidationClaim({
+    claimId: claim.id,
+    submissionDate,
+    documentStatus: validation?.isDocumentComplete ? 'Complete' : documents.length > 0 ? 'Incomplete' : 'Incomplete',
+    aiAssessment,
+    policyStatus,
+    routingStatus,
+    currentStep: resolveCurrentStep(claim, validation),
+    totalSteps: 5,
+    documents,
+    aiSummary: buildAiSummary(claim, validation),
+    policyInfo: buildPolicyInfo(claim, coverage),
+    timeline,
+  });
+}
+
+function resolveAiAssessment(claim, validation) {
+  if (!validation) {
+    return 'Pending';
+  }
+
+  if (claim.status === 'Approved' || validation.isApproved) {
+    return 'Valid';
+  }
+
+  if (validation.reasons?.length) {
+    return 'Inconclusive';
+  }
+
+  if (validation.stpStatus === 'Pending') {
+    return 'Processing';
+  }
+
+  return 'Pending';
+}
+
+function resolvePolicyStatus(coverage) {
+  if (!coverage) {
+    return 'Pending';
+  }
+
+  const expiryDate = coverage.expiryDate ? moment(coverage.expiryDate) : null;
+  const effectiveDate = coverage.effectiveDate ? moment(coverage.effectiveDate) : null;
+  const now = moment();
+
+  if (effectiveDate?.isValid() && expiryDate?.isValid() && now.isBetween(effectiveDate, expiryDate, undefined, '[]')) {
+    return 'Active';
+  }
+
+  if (expiryDate?.isValid() && expiryDate.isBefore(now)) {
+    return 'Inactive';
+  }
+
+  return 'Pending';
+}
+
+function resolveRoutingStatus(claim, validation) {
+  if (claim.status === 'Approved') {
+    return claim.isStpApproved || validation?.stpStatus === 'AutoApproved'
+      ? 'Approved - STP'
+      : 'Approved';
+  }
+
+  if (claim.status === 'Rejected') {
+    return 'Manual Review - Rejected';
+  }
+
+  if (String(claim.status || '').includes('Pending Customer Action')) {
+    return 'Manual Review - Missing Documents';
+  }
+
+  if (String(claim.status || '').includes('Customer Responded')) {
+    return 'In Progress - Customer Response';
+  }
+
+  if (validation?.reasons?.length || validation?.stpStatus === 'ManualReview') {
+    return 'Manual Review - AI Inconclusive';
+  }
+
+  if (validation?.stpStatus === 'Pending') {
+    return 'In Progress - AI Analysis';
+  }
+
+  return 'In Progress - Validation';
+}
+
+function resolveCurrentStep(claim, validation) {
+  if (claim.status === 'Approved' || claim.status === 'Rejected' || claim.decidedAt) {
+    return 5;
+  }
+
+  if (claim.coverage || validation) {
+    return 4;
+  }
+
+  if (validation || claim.documents?.length) {
+    return 3;
+  }
+
+  if (claim.documents?.length) {
+    return 2;
+  }
+
+  return 1;
+}
+
+function buildAiSummary(claim, validation) {
+  if (!validation) {
+    return 'Validation result is not available yet.';
+  }
+
+  if (validation.reasons?.length) {
+    return validation.reasons.join(' ');
+  }
+
+  if (claim.workshopRepairEstimate?.totalAmount) {
+    return `Vehicle damage review completed. Workshop estimate recorded at RM ${Number(claim.workshopRepairEstimate.totalAmount).toFixed(2)}.`;
+  }
+
+  if (validation.isApproved) {
+    return 'Validation checks passed and the claim is eligible for straight-through processing.';
+  }
+
+  return 'Validation is in progress.';
+}
+
+function buildPolicyInfo(claim, coverage) {
+  if (!coverage) {
+    return `Policy ${claim.policyNumber || 'not linked yet'} - coverage data is still pending.`;
+  }
+
+  return `Policy ${claim.policyNumber || 'Unknown'} - ${coverage.coverageType || 'Vehicle coverage'} from ${formatTimelineDate(coverage.effectiveDate)} until ${formatTimelineDate(coverage.expiryDate)}.`;
+}
+
+function buildClaimTimeline(claim, validation) {
+  const events = [
+    createValidationEvent('Submitted', claim.createdAt || claim.date || claim.incidentDate),
+  ];
+
+  if (claim.documents?.length) {
+    events.push(createValidationEvent('Document Check', claim.createdAt || claim.date || claim.incidentDate));
+  }
+
+  if (validation) {
+    events.push(createValidationEvent('AI Analysis', claim.createdAt || claim.date || claim.incidentDate));
+    events.push(createValidationEvent('Policy Check', claim.createdAt || claim.date || claim.incidentDate));
+  }
+
+  if (claim.decidedAt || claim.requestedAt || claim.respondedAt || claim.status) {
+    events.push(createValidationEvent('Routed', claim.decidedAt || claim.respondedAt || claim.requestedAt || claim.createdAt || claim.date));
+  }
+
+  return events.filter((event) => Boolean(event.date));
+}
+
+function formatTimelineDate(value) {
+  return value ? moment(value).format('DD MMM YYYY') : 'Not available';
 }
 
 export default TrackValidationProcess;
