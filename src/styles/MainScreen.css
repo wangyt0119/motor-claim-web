@@ -324,6 +324,10 @@
   grid-column: span 8;
 }
 
+.portal-dashboard-span-12 {
+  grid-column: span 12;
+}
+
 .portal-dashboard-stat {
   height: 100%;
   border: none;
@@ -487,6 +491,66 @@
   border-bottom: 1px solid rgba(255, 153, 102, 0.14);
 }
 
+.portal-dashboard-hero-workshop {
+  background: #fff3e8;
+  border-color: #f3c8a7;
+  box-shadow: 0 14px 32px rgba(234, 88, 12, 0.08);
+}
+
+.portal-dashboard-kicker-workshop {
+  background: #ffe7d1;
+  color: #9a3412;
+}
+
+.portal-dashboard-chip-workshop {
+  background: #fff8f1;
+  border-color: #f3d2b7;
+}
+
+.portal-dashboard-theme-soft {
+  background: #fff3e8;
+  border-color: #f3c8a7;
+  box-shadow: 0 14px 32px rgba(234, 88, 12, 0.08);
+}
+
+.portal-dashboard-chip-soft {
+  background: #fff8f1;
+  border-color: #f3d2b7;
+}
+
+.portal-dashboard-kicker-soft {
+  background: #ffe7d1;
+  color: #9a3412;
+}
+
+.portal-dashboard-stat-workshop {
+  background: #fff7ed;
+  border: 1px solid #f3d2b7;
+  box-shadow: 0 14px 30px rgba(234, 88, 12, 0.07);
+}
+
+.portal-dashboard-stat-workshop .portal-dashboard-stat-label {
+  color: #9a3412;
+}
+
+.portal-dashboard-stat-workshop .portal-dashboard-stat-subtitle {
+  color: #7c5a46;
+}
+
+.portal-dashboard-stat-soft {
+  background: #fff7ed;
+  border: 1px solid #f3d2b7;
+  box-shadow: 0 14px 30px rgba(234, 88, 12, 0.07);
+}
+
+.portal-dashboard-stat-soft .portal-dashboard-stat-label {
+  color: #9a3412;
+}
+
+.portal-dashboard-stat-soft .portal-dashboard-stat-subtitle {
+  color: #7c5a46;
+}
+
 @media (max-width: 1200px) {
   .portal-dashboard-span-3,
   .portal-dashboard-span-4,
@@ -496,7 +560,8 @@
   }
 
   .portal-dashboard-span-7,
-  .portal-dashboard-span-8 {
+  .portal-dashboard-span-8,
+  .portal-dashboard-span-12 {
     grid-column: span 12;
   }
 }
@@ -521,7 +586,8 @@
   .portal-dashboard-span-5,
   .portal-dashboard-span-6,
   .portal-dashboard-span-7,
-  .portal-dashboard-span-8 {
+  .portal-dashboard-span-8,
+  .portal-dashboard-span-12 {
     grid-column: span 12;
   }
 

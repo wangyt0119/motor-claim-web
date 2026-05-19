@@ -1,7 +1,9 @@
 import React, { useMemo, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import AuthScreen from './AuthScreen';
+import ForgotPasswordScreen from './ForgotPasswordScreen';
 import MainScreen from './MainScreen';
+import ResetPasswordScreen from './ResetPasswordScreen';
 import { clearCustomerSession, getCustomerSession, saveCustomerSession } from '../utils/authStorage';
 import { USER_ROLE, normalizeRole } from '../constants/userRoles';
 import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
@@ -30,27 +32,11 @@ function CustomerPortal() {
     <Routes>
       <Route
         index
-        element={
-          <Navigate
-            to={
-              isAuthenticated
-                ? getPortalPath(PORTAL_KEYS.CUSTOMER, '/dashboard')
-                : getPortalPath(PORTAL_KEYS.CUSTOMER, '/auth')
-            }
-            replace
-          />
-        }
+        element={<Navigate to={getPortalPath(PORTAL_KEYS.CUSTOMER, '/auth')} replace />}
       />
-      <Route
-        path="auth"
-        element={
-          isAuthenticated ? (
-            <Navigate to={getPortalPath(PORTAL_KEYS.CUSTOMER, '/dashboard')} replace />
-          ) : (
-            <AuthScreen onAuthenticated={handleAuthenticated} />
-          )
-        }
-      />
+      <Route path="auth" element={<AuthScreen onAuthenticated={handleAuthenticated} />} />
+      <Route path="forgot-password" element={<ForgotPasswordScreen />} />
+      <Route path="reset-password" element={<ResetPasswordScreen />} />
       <Route
         path="*"
         element={

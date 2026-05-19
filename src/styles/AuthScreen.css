@@ -36,6 +36,7 @@
 }
 
 .auth-screen__logo {
+  display: block;
   width: 138px;
   margin-bottom: 20px;
 }
@@ -118,6 +119,24 @@
 
 .auth-form .ant-form-item {
   margin-bottom: 18px;
+}
+
+.auth-form__linkRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -8px;
+  margin-bottom: 18px;
+}
+
+.auth-form__footerLink {
+  margin-top: 18px;
+  text-align: center;
+}
+
+.auth-form__footerLink a {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
 }
 
 .auth-form__radioGroup {

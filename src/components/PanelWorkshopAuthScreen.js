@@ -60,7 +60,7 @@ function PanelWorkshopAuthScreen({ onAuthenticated }) {
           </Paragraph>
         </div>
 
-        <Card className="auth-card" bordered={false}>
+        <Card className="auth-card" variant="borderless">
           <Form form={form} layout="vertical" onFinish={handleLogin} requiredMark={false} className="auth-form">
             <Title level={3} className="auth-form__title">
               Panel Workshop Login

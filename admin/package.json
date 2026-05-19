@@ -1,0 +1,9 @@
+{
+  "name": "motor-claim-admin",
+  "private": true,
+  "scripts": {
+    "start": "npm --prefix .. run start:admin",
+    "build": "npm --prefix .. run build:admin",
+    "test": "npm --prefix .. run test"
+  }
+}

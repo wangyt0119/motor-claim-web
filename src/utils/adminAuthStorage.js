@@ -1,7 +1,8 @@
 const ADMIN_SESSION_KEY = 'adminPortalSession';
 
 export function getAdminSession() {
-  const rawValue = window.localStorage.getItem(ADMIN_SESSION_KEY);
+  window.localStorage.removeItem(ADMIN_SESSION_KEY);
+  const rawValue = window.sessionStorage.getItem(ADMIN_SESSION_KEY);
 
   if (!rawValue) {
     return null;
@@ -10,15 +11,17 @@ export function getAdminSession() {
   try {
     return JSON.parse(rawValue);
   } catch (error) {
-    window.localStorage.removeItem(ADMIN_SESSION_KEY);
+    window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
     return null;
   }
 }
 
 export function saveAdminSession(session) {
-  window.localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
+  window.localStorage.removeItem(ADMIN_SESSION_KEY);
+  window.sessionStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify(session));
 }
 
 export function clearAdminSession() {
   window.localStorage.removeItem(ADMIN_SESSION_KEY);
+  window.sessionStorage.removeItem(ADMIN_SESSION_KEY);
 }

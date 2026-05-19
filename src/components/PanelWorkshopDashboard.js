@@ -45,7 +45,7 @@ import WorkshopRepairEstimateCard, { formatEstimateStatus, getEstimateStatusColo
 import WorkshopPaymentsScreen from './WorkshopPaymentsScreen';
 import WorkshopNotificationScreen from './WorkshopNotificationScreen';
 
-const { Header, Sider, Content } = Layout;
+const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
 function PanelWorkshopDashboard({ currentUser, onSignOut }) {
@@ -263,14 +263,12 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       </Sider>
 
       <Layout>
-        <Header className="portal-dashboard-header" />
-
         <Content className="portal-dashboard-page">
           {selectedIndex === 0 ? (
             <div className="portal-dashboard-stack">
-            <div className="portal-dashboard-hero" style={{ background: 'linear-gradient(135deg, #ff8a00 0%, #ff5fa2 48%, #5b8def 100%)' }}>
+            <div className="portal-dashboard-hero portal-dashboard-hero-workshop">
               <div className="portal-dashboard-hero-content">
-                <span className="portal-dashboard-kicker">Workshop Space</span>
+                <span className="portal-dashboard-kicker portal-dashboard-kicker-workshop">Workshop Space</span>
                 <Title level={2} className="portal-dashboard-title">
                   Welcome back, {currentUser?.fullName || currentUser?.FullName || 'Workshop'}
                 </Title>
@@ -278,15 +276,15 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   Keep track of customer workshop bookings, appointments, and quotation submissions in one easy dashboard.
                 </Text>
                 <div className="portal-dashboard-chip-row">
-                  <div className="portal-dashboard-chip">
+                  <div className="portal-dashboard-chip portal-dashboard-chip-workshop">
                     <span className="portal-dashboard-chip-label">Assigned Claims</span>
                     <span className="portal-dashboard-chip-value">{claims.length}</span>
                   </div>
-                  <div className="portal-dashboard-chip">
+                  <div className="portal-dashboard-chip portal-dashboard-chip-workshop">
                     <span className="portal-dashboard-chip-label">Today</span>
                     <span className="portal-dashboard-chip-value">{todayClaims.length}</span>
                   </div>
-                  <div className="portal-dashboard-chip">
+                  <div className="portal-dashboard-chip portal-dashboard-chip-workshop">
                     <span className="portal-dashboard-chip-label">Submitted</span>
                     <span className="portal-dashboard-chip-value">{submittedEstimateCount}</span>
                   </div>
@@ -301,7 +299,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   value={claims.length}
                   subtitle="Approved claims sent to your workshop"
                   icon={<FileSearchOutlined />}
-                  background="linear-gradient(135deg, #fff4e8 0%, #ffe2ca 100%)"
+                  background="#fff7ed"
                   accent="#ea580c"
                 />
               </div>
@@ -311,8 +309,8 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   value={upcomingClaims.length}
                   subtitle="Bookings already scheduled"
                   icon={<CalendarOutlined />}
-                  background="linear-gradient(135deg, #eef4ff 0%, #d9e7ff 100%)"
-                  accent="#2563eb"
+                  background="#fff7ed"
+                  accent="#ea580c"
                 />
               </div>
               <div className="portal-dashboard-span-3">
@@ -321,8 +319,8 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   value={todayClaims.length}
                   subtitle="Customers expected today"
                   icon={<CarOutlined />}
-                  background="linear-gradient(135deg, #edfdf3 0%, #d6f8e1 100%)"
-                  accent="#16a34a"
+                  background="#fff7ed"
+                  accent="#ea580c"
                 />
               </div>
               <div className="portal-dashboard-span-3">
@@ -331,14 +329,14 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   value={submittedEstimateCount}
                   subtitle="Quotations already uploaded"
                   icon={<ToolOutlined />}
-                  background="linear-gradient(135deg, #f7efff 0%, #ecdfff 100%)"
-                  accent="#7c3aed"
+                  background="#fff7ed"
+                  accent="#ea580c"
                 />
               </div>
             </div>
 
             <div className="portal-dashboard-grid">
-              <div className="portal-dashboard-span-8">
+              <div className="portal-dashboard-span-12">
                 <Card className="portal-dashboard-card">
                   <div className="portal-dashboard-card-header">
                     <div>
@@ -385,46 +383,17 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                 </Card>
               </div>
 
-              <div className="portal-dashboard-span-4">
-                <Card className="portal-dashboard-card">
-                  <div className="portal-dashboard-card-header">
-                    <div>
-                      <Title level={4} className="portal-dashboard-card-title">Workshop Notes</Title>
-                      <Text className="portal-dashboard-card-subtitle">A quick reminder for smooth submissions</Text>
-                    </div>
-                  </div>
-                  <div className="portal-dashboard-list">
-                    <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
-                      <div className="portal-dashboard-list-meta">
-                        <Text strong>Upload quotation first</Text>
-                        <Text type="secondary">Include the repair amount and main quotation file for review.</Text>
-                      </div>
-                    </div>
-                    <div className="portal-dashboard-list-item portal-dashboard-list-item-soft">
-                      <div className="portal-dashboard-list-meta">
-                        <Text strong>Add supporting files</Text>
-                        <Text type="secondary">Photos, breakdowns, or receipts help the officer validate faster.</Text>
-                      </div>
-                    </div>
-                    <div className="portal-dashboard-highlight">
-                      <Text strong>Fast summary</Text>
-                      <Text type="secondary" style={{ display: 'block', marginTop: 6 }}>
-                        Once a quotation is submitted, it is locked and can no longer be changed from the workshop portal.
-                      </Text>
-                    </div>
-                  </div>
-                </Card>
-              </div>
             </div>
             </div>
           ) : selectedIndex === 1 ? (
             <WorkshopPaymentsScreen scope="workshop" claims={claims} />
           ) : selectedIndex === 2 ? (
-            <WorkshopNotificationScreen claims={claims} currentUser={currentUser} />
+            <WorkshopNotificationScreen claims={claims} currentUser={currentUser} theme="workshop" />
           ) : (
             <ProfileScreen
               heading="Workshop Profile"
               description="Review your workshop account details, workshop record, and bank details."
+              theme="workshop"
             />
           )}
         </Content>
@@ -629,7 +598,7 @@ function formatTimeRange(start, end) {
 
 function WorkshopMetricCard({ label, value, subtitle, icon, background, accent }) {
   return (
-    <Card className="portal-dashboard-stat" style={{ background }}>
+    <Card className="portal-dashboard-stat portal-dashboard-stat-workshop" style={{ background }}>
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <Space size={12} align="center">
           <span

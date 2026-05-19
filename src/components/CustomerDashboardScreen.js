@@ -54,9 +54,9 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
   return (
     <div className="portal-dashboard-page">
       <div className="portal-dashboard-stack">
-        <div className="portal-dashboard-hero">
+        <div className="portal-dashboard-hero portal-dashboard-theme-soft">
           <div className="portal-dashboard-hero-content">
-            <span className="portal-dashboard-kicker">Customer Home</span>
+            <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Customer Home</span>
             <Title level={2} className="portal-dashboard-title">
               Welcome back, {currentUser?.fullName || currentUser?.FullName || 'Customer'}
             </Title>
@@ -65,15 +65,15 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
             </Text>
 
             <div className="portal-dashboard-chip-row">
-              <div className="portal-dashboard-chip">
+              <div className="portal-dashboard-chip portal-dashboard-chip-soft">
                 <span className="portal-dashboard-chip-label">Total Claims</span>
                 <span className="portal-dashboard-chip-value">{claims.length}</span>
               </div>
-              <div className="portal-dashboard-chip">
+              <div className="portal-dashboard-chip portal-dashboard-chip-soft">
                 <span className="portal-dashboard-chip-label">Need Action</span>
                 <span className="portal-dashboard-chip-value">{pendingCustomerActions.length}</span>
               </div>
-              <div className="portal-dashboard-chip">
+              <div className="portal-dashboard-chip portal-dashboard-chip-soft">
                 <span className="portal-dashboard-chip-label">Approved</span>
                 <span className="portal-dashboard-chip-value">{approvedClaims.length}</span>
               </div>
@@ -111,7 +111,7 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
               value={claims.length}
               subtitle="Everything submitted so far"
               icon={<FileTextOutlined />}
-              background="linear-gradient(135deg, #fff3e8 0%, #ffe0cc 100%)"
+              background="#fff7ed"
               accent="#f97316"
             />
           </ColWrapper>
@@ -121,8 +121,8 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
               value={activeClaims.length}
               subtitle="Still in progress"
               icon={<ClockCircleOutlined />}
-              background="linear-gradient(135deg, #eef4ff 0%, #dce9ff 100%)"
-              accent="#2563eb"
+              background="#fff7ed"
+              accent="#ea580c"
             />
           </ColWrapper>
           <ColWrapper spanClass="portal-dashboard-span-3">
@@ -131,8 +131,8 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
               value={approvedClaims.length}
               subtitle="Claims already approved"
               icon={<CheckCircleOutlined />}
-              background="linear-gradient(135deg, #ecfdf3 0%, #d4f7df 100%)"
-              accent="#16a34a"
+              background="#fff7ed"
+              accent="#ea580c"
             />
           </ColWrapper>
           <ColWrapper spanClass="portal-dashboard-span-3">
@@ -141,8 +141,8 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
               value={coverages.length}
               subtitle="Policies linked to your account"
               icon={<ToolOutlined />}
-              background="linear-gradient(135deg, #f7efff 0%, #eddcff 100%)"
-              accent="#7c3aed"
+              background="#fff7ed"
+              accent="#ea580c"
             />
           </ColWrapper>
         </div>
@@ -262,7 +262,7 @@ function ColWrapper({ children, spanClass }) {
 
 function StatCard({ label, value, subtitle, icon, background, accent }) {
   return (
-    <Card className="portal-dashboard-stat" style={{ background }}>
+    <Card className="portal-dashboard-stat portal-dashboard-stat-soft" style={{ background }}>
       <Space direction="vertical" size={8} style={{ width: '100%' }}>
         <Space size={12} align="center">
           <span
@@ -273,9 +273,9 @@ function StatCard({ label, value, subtitle, icon, background, accent }) {
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              background: '#fff',
+              background: '#fffaf5',
               color: accent,
-              boxShadow: '0 10px 22px rgba(255,255,255,0.46)',
+              border: '1px solid #f3d2b7',
             }}
           >
             {React.cloneElement(icon, { style: { fontSize: 20 } })}

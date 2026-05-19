@@ -92,25 +92,28 @@ function ManualReviewQueue({ claims = [], onClaimsChanged }) {
   };
 
   const buildHeader = () => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <div>
-        <Title level={2} style={{ margin: 0 }}>Manual Review Queue</Title>
-        <Text type="secondary" style={{ fontSize: 16 }}>
-          Claims flagged for manual review and approval
+    <div className="portal-dashboard-hero portal-dashboard-theme-soft">
+      <div className="portal-dashboard-hero-content">
+        <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Officer Review</span>
+        <Title level={2} className="portal-dashboard-title">Manual Review Queue</Title>
+        <Text className="portal-dashboard-description">
+          Claims flagged for manual review and approval.
         </Text>
+        <div className="portal-dashboard-chip-row">
+          <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+            <span className="portal-dashboard-chip-label">Flagged</span>
+            <span className="portal-dashboard-chip-value">{flaggedClaims.length}</span>
+          </div>
+          <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+            <span className="portal-dashboard-chip-label">High Priority</span>
+            <span className="portal-dashboard-chip-value">{flaggedClaims.filter((claim) => claim.priority === 'High').length}</span>
+          </div>
+          <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+            <span className="portal-dashboard-chip-label">Customer Responded</span>
+            <span className="portal-dashboard-chip-value">{flaggedClaims.filter((claim) => String(claim.status || '').toLowerCase() === 'customer responded').length}</span>
+          </div>
+        </div>
       </div>
-      <Tag 
-        color="#FF6600"
-        icon={<FlagOutlined />}
-        style={{ 
-          padding: '8px 16px', 
-          fontSize: 14,
-          fontWeight: 600,
-          borderRadius: 8
-        }}
-      >
-        {flaggedClaims.length} Flagged
-      </Tag>
     </div>
   );
 
@@ -357,6 +360,12 @@ function getManualReviewPriority(claim) {
   const reasons = (validation.reasons || []).join(' ').toLowerCase();
   const amount = Number(claim.claimAmount || 0);
   const normalizedStatus = String(claim.status || '').toLowerCase();
+  const manualFlagReason = String(claim.manualReviewFlagReason || '').toLowerCase();
+  const isRepeatCoverageFlag =
+    claim.isFlaggedForManualReview &&
+    /another submitted claim within the last|last 30 days|same coverage/i.test(
+      claim.manualReviewFlagReason || ''
+    );
 
   const hasCriticalMismatch =
     validation.isIdentityMatched === false ||
@@ -366,9 +375,10 @@ function getManualReviewPriority(claim) {
 
   const hasCriticalDocumentIssue =
     validation.isDocumentComplete === false ||
-    /ocr failed|missing|does not match|fraud|suspicious|confidence is too low/.test(reasons);
+    /ocr failed|missing|does not match|fraud|suspicious|confidence is too low/.test(reasons) ||
+    /duplicate|repeat claim|same coverage|last 30 days/.test(manualFlagReason);
 
-  if (hasCriticalMismatch || hasCriticalDocumentIssue || amount >= 5000) {
+  if (isRepeatCoverageFlag || hasCriticalMismatch || hasCriticalDocumentIssue || amount >= 5000) {
     return 'High';
   }
 
@@ -380,6 +390,10 @@ function getManualReviewPriority(claim) {
 }
 
 function getPriorityReason(priority, claim) {
+  if (claim.isFlaggedForManualReview && claim.manualReviewFlagReason) {
+    return claim.manualReviewFlagReason;
+  }
+
   if (priority === 'High') {
     return 'Critical mismatch or missing key evidence';
   }
@@ -392,6 +406,10 @@ function getPriorityReason(priority, claim) {
 }
 
 function getPriorityDescription(priority, claim) {
+  if (claim.isFlaggedForManualReview && claim.manualReviewFlagReason) {
+    return 'This claim was automatically routed to manual review by a backend fraud or repeat-claim rule.';
+  }
+
   if (priority === 'High') {
     return 'This claim has a key document mismatch, missing evidence, suspicious indicator, or a higher-risk review signal.';
   }

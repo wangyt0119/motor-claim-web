@@ -34,27 +34,9 @@ function PanelWorkshopPortal() {
     <Routes>
       <Route
         index
-        element={
-          <Navigate
-            to={
-              isAuthenticated
-                ? getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/dashboard')
-                : getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/auth')
-            }
-            replace
-          />
-        }
+        element={<Navigate to={getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/auth')} replace />}
       />
-      <Route
-        path="auth"
-        element={
-          isAuthenticated ? (
-            <Navigate to={getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/dashboard')} replace />
-          ) : (
-            <PanelWorkshopAuthScreen onAuthenticated={handleAuthenticated} />
-          )
-        }
-      />
+      <Route path="auth" element={<PanelWorkshopAuthScreen onAuthenticated={handleAuthenticated} />} />
       <Route
         path="*"
         element={

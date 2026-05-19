@@ -197,11 +197,28 @@ function WorkshopSubmissionsOfficerScreen({
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={2} style={{ marginBottom: 6 }}>
-          {title}
-        </Title>
-        <Text type="secondary">{description}</Text>
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft" style={{ marginBottom: 20 }}>
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Officer Review</span>
+          <Title level={2} className="portal-dashboard-title">
+            {title}
+          </Title>
+          <Text className="portal-dashboard-description">{description}</Text>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Submissions</span>
+              <span className="portal-dashboard-chip-value">{workshopClaims.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">STP Approved</span>
+              <span className="portal-dashboard-chip-value">{approvedCount}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Need Review</span>
+              <span className="portal-dashboard-chip-value">{manualReviewCount}</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>

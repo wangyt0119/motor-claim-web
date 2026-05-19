@@ -18,13 +18,13 @@ apiClient.interceptors.request.use((config) => {
   let session = null;
 
   if (standaloneTarget === PORTAL_KEYS.PANEL_WORKSHOP || pathname.startsWith('/panel-workshop')) {
-    session = getPanelWorkshopSession() || getAdminSession() || getOfficerSession() || getCustomerSession();
+    session = getPanelWorkshopSession();
   } else if (standaloneTarget === PORTAL_KEYS.ADMIN || pathname.startsWith('/admin')) {
-    session = getAdminSession() || getOfficerSession() || getPanelWorkshopSession() || getCustomerSession();
+    session = getAdminSession();
   } else if (standaloneTarget === PORTAL_KEYS.OFFICER || pathname.startsWith('/officer')) {
-    session = getOfficerSession() || getAdminSession() || getPanelWorkshopSession() || getCustomerSession();
+    session = getOfficerSession();
   } else if (standaloneTarget === PORTAL_KEYS.CUSTOMER || pathname.startsWith('/customer')) {
-    session = getCustomerSession() || getAdminSession() || getOfficerSession() || getPanelWorkshopSession();
+    session = getCustomerSession();
   } else {
     session = getAdminSession() || getCustomerSession() || getOfficerSession() || getPanelWorkshopSession();
   }

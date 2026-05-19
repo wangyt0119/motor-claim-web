@@ -60,8 +60,16 @@ export function mapClaimFromApi(claim) {
     reviewStatus,
     stpStatus: normalizedStpStatus,
     isStpApproved,
+    isFlaggedForManualReview:
+      normalizeBoolean(claim.isFlaggedForManualReview ?? claim.IsFlaggedForManualReview) ?? false,
+    manualReviewFlagReason:
+      claim.manualReviewFlagReason ?? claim.ManualReviewFlagReason ?? null,
     validationResultRaw,
     validationResult,
+    emailNotificationSent:
+      normalizeBoolean(claim.emailNotificationSent ?? claim.EmailNotificationSent),
+    emailNotificationMessage:
+      claim.emailNotificationMessage ?? claim.EmailNotificationMessage ?? null,
     officerDecisionNote: claim.officerDecisionNote ?? claim.OfficerDecisionNote ?? null,
     requestedItemsRaw,
     requestedItems: parseRequestedItems(requestedItemsRaw),
@@ -73,6 +81,7 @@ export function mapClaimFromApi(claim) {
     reviewedByUserId: claim.reviewedByUserId ?? claim.ReviewedByUserId ?? null,
     workshopAppointment: mapWorkshopAppointment(claim.workshopAppointment ?? claim.WorkshopAppointment ?? null),
     workshopRepairEstimate: mapWorkshopRepairEstimate(claim.workshopRepairEstimate ?? claim.WorkshopRepairEstimate ?? null),
+    workshopPayment: mapWorkshopPayment(claim.workshopPayment ?? claim.WorkshopPayment ?? null),
     documents,
   };
 }
@@ -301,6 +310,33 @@ function mapWorkshopRepairEstimate(estimate) {
     reviewedByUserId: estimate.reviewedByUserId ?? estimate.ReviewedByUserId ?? null,
     submittedAt: estimate.submittedAt ?? estimate.SubmittedAt ?? null,
     reviewedAt: estimate.reviewedAt ?? estimate.ReviewedAt ?? null,
+  };
+}
+
+function mapWorkshopPayment(payment) {
+  if (!payment || typeof payment !== 'object') {
+    return null;
+  }
+
+  return {
+    paymentId: payment.paymentId ?? payment.PaymentId ?? null,
+    estimateId: payment.estimateId ?? payment.EstimateId ?? null,
+    claimId: payment.claimId ?? payment.ClaimId ?? null,
+    workshopId: payment.workshopId ?? payment.WorkshopId ?? null,
+    workshopName: payment.workshopName ?? payment.WorkshopName ?? '',
+    amount: Number(payment.amount ?? payment.Amount ?? 0),
+    currency: payment.currency ?? payment.Currency ?? 'MYR',
+    status: payment.status ?? payment.Status ?? '',
+    provider: payment.provider ?? payment.Provider ?? '',
+    approvalSource: payment.approvalSource ?? payment.ApprovalSource ?? '',
+    providerReference: payment.providerReference ?? payment.ProviderReference ?? null,
+    bankNameSnapshot: payment.bankNameSnapshot ?? payment.BankNameSnapshot ?? null,
+    bankAccountNumberSnapshot: payment.bankAccountNumberSnapshot ?? payment.BankAccountNumberSnapshot ?? null,
+    bankAccountHolderNameSnapshot:
+      payment.bankAccountHolderNameSnapshot ?? payment.BankAccountHolderNameSnapshot ?? null,
+    failureReason: payment.failureReason ?? payment.FailureReason ?? null,
+    createdAt: payment.createdAt ?? payment.CreatedAt ?? null,
+    paidAt: payment.paidAt ?? payment.PaidAt ?? null,
   };
 }
 

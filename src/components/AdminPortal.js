@@ -30,27 +30,9 @@ function AdminPortal() {
     <Routes>
       <Route
         index
-        element={
-          <Navigate
-            to={
-              isAuthenticated
-                ? getPortalPath(PORTAL_KEYS.ADMIN, '/dashboard')
-                : getPortalPath(PORTAL_KEYS.ADMIN, '/auth')
-            }
-            replace
-          />
-        }
+        element={<Navigate to={getPortalPath(PORTAL_KEYS.ADMIN, '/auth')} replace />}
       />
-      <Route
-        path="auth"
-        element={
-          isAuthenticated ? (
-            <Navigate to={getPortalPath(PORTAL_KEYS.ADMIN, '/dashboard')} replace />
-          ) : (
-            <AdminAuthScreen onAuthenticated={handleAuthenticated} />
-          )
-        }
-      />
+      <Route path="auth" element={<AdminAuthScreen onAuthenticated={handleAuthenticated} />} />
       <Route
         path="*"
         element={

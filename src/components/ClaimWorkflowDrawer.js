@@ -3,7 +3,6 @@ import {
   Alert,
   Button,
   Card,
-  Col,
   Descriptions,
   Divider,
   Drawer,
@@ -11,8 +10,6 @@ import {
   Input,
   List,
   Modal,
-  Progress,
-  Row,
   Select,
   Space,
   Tag,
@@ -28,7 +25,6 @@ import {
   FileImageOutlined,
   FileTextOutlined,
   FileUnknownOutlined,
-  InfoCircleOutlined,
   SafetyCertificateOutlined,
   SendOutlined,
 } from '@ant-design/icons';
@@ -63,6 +59,29 @@ const WORKSHOP_ESTIMATE_REQUEST_OPTIONS = [
   { key: 'remarks', label: 'Revise remarks' },
 ];
 
+const diagnosticHeaderStyle = {
+  display: 'grid',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
+  gap: 12,
+  alignItems: 'center',
+  marginBottom: 12,
+};
+
+const diagnosticTitleStyle = {
+  display: 'block',
+  minWidth: 0,
+};
+
+const diagnosticLabelStyle = {
+  width: 160,
+  fontWeight: 600,
+  background: '#f8fafc',
+};
+
+const diagnosticContentStyle = {
+  wordBreak: 'break-word',
+};
+
 function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
   const [actionModal, setActionModal] = useState({ open: false, type: null });
   const [estimateActionModal, setEstimateActionModal] = useState({ open: false, type: null });
@@ -71,7 +90,14 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
   const [customRequestText, setCustomRequestText] = useState('');
   const [submittingAction, setSubmittingAction] = useState(false);
 
-  const diagnostics = claim?.validationResult?.documentDiagnostics || [];
+  const diagnostics = useMemo(
+    () => claim?.validationResult?.documentDiagnostics || [],
+    [claim]
+  );
+  const diagnosticItems = useMemo(
+    () => buildCombinedDocumentDiagnostics(claim, diagnostics),
+    [claim, diagnostics]
+  );
   const requestItems = claim?.requestedItems || [];
   const customerResponseDocuments = claim?.responseDocuments || [];
   const coverage = claim?.coverage || null;
@@ -339,45 +365,53 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
               <Divider />
               <Title level={5}>Document diagnostics</Title>
               <Paragraph type="secondary">
-                This section shows exactly how each OCR document performed and what match check caused STP to fail.
+                OCR verification is applied to identity, vehicle ownership, police report, and driving license documents.
+                Other uploaded files are shown as file validation checks so the document set is reviewed completely.
               </Paragraph>
 
-              {diagnostics.length ? (
+              {diagnosticItems.length ? (
                 <Space direction="vertical" size={12} style={{ width: '100%' }}>
-                  {diagnostics.map((diagnostic) => {
+                  {diagnosticItems.map((item) => {
+                    if (item.type === 'file') {
+                      return (
+                        <Card key={item.key} size="small" style={{ borderRadius: 12, background: '#fafafa' }}>
+                          <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
+                            <Text strong>{item.label}</Text>
+                            <Tag color="blue">File validation</Tag>
+                            <Tag color={item.supportedFormat ? 'green' : 'orange'}>
+                              {item.supportedFormat ? 'Ready for review' : 'Check format'}
+                            </Tag>
+                          </Space>
+
+                          <Descriptions column={1} size="small" bordered>
+                            <Descriptions.Item label="Upload status">{renderBooleanTag(Boolean(item.url))}</Descriptions.Item>
+                            <Descriptions.Item label="File type">{item.extension ? item.extension.toUpperCase() : 'Unknown'}</Descriptions.Item>
+                            <Descriptions.Item label="Validation note">{item.message}</Descriptions.Item>
+                          </Descriptions>
+                        </Card>
+                      );
+                    }
+
+                    const diagnostic = item.diagnostic;
                     const resolvedMatchSource = resolveMatchSource(diagnostic);
                     const details = buildDiagnosticDetails(diagnostic, resolvedMatchSource);
+                    const matchTarget = details.find((detail) => detail.label === 'Match target');
                     return (
                       <Card key={diagnostic.key} size="small" style={{ borderRadius: 12, background: '#fafafa' }}>
-                        <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
-                          <Text strong>{diagnostic.documentName}</Text>
-                          <Tag color={diagnostic.provided ? 'blue' : 'default'}>{diagnostic.provided ? 'Provided' : 'Not Provided'}</Tag>
-                          <Tag color={diagnostic.ocrSucceeded ? 'green' : 'red'}>{diagnostic.ocrSucceeded ? 'OCR Success' : 'OCR Failed'}</Tag>
-                          {diagnostic.isMatched === true ? <Tag color="green">Matched</Tag> : null}
-                          {diagnostic.isMatched === false ? <Tag color="red">Not Matched</Tag> : null}
-                          {resolvedMatchSource ? <Tag color={getMatchSourceColor(resolvedMatchSource)}>Matched by {formatMatchSource(resolvedMatchSource)}</Tag> : null}
-                        </Space>
+                        <div style={diagnosticHeaderStyle}>
+                          <Text strong style={diagnosticTitleStyle}>{diagnostic.documentName}</Text>
+                          <Space size={6} wrap={false}>
+                            <Tag color="purple" style={{ marginInlineEnd: 0 }}>OCR verification</Tag>
+                            <Tag color={diagnostic.provided ? 'blue' : 'default'} style={{ marginInlineEnd: 0 }}>
+                              {diagnostic.provided ? 'Provided' : 'Not Provided'}
+                            </Tag>
+                          </Space>
+                        </div>
 
-                        <Row gutter={[12, 12]}>
-                          <Col xs={24} md={12}>
-                            <Text type="secondary">OCR confidence</Text>
-                            <div style={{ marginTop: 6 }}>
-                              <Progress percent={Math.round((diagnostic.confidence || 0) * 100)} strokeColor={diagnostic.confidencePassed ? '#16a34a' : '#dc2626'} />
-                            </div>
-                          </Col>
-                          <Col xs={24} md={12}>
-                            <Descriptions column={1} size="small" bordered>
-                              <Descriptions.Item label="Confidence passed">{renderBooleanTag(diagnostic.confidencePassed)}</Descriptions.Item>
-                              {details.map((item) => (
-                                <Descriptions.Item key={item.label} label={item.label}>{item.value}</Descriptions.Item>
-                              ))}
-                              <Descriptions.Item label="Match source">{resolvedMatchSource ? formatMatchSource(resolvedMatchSource) : 'Not provided by backend'}</Descriptions.Item>
-                            </Descriptions>
-                          </Col>
-                        </Row>
-
-                        {diagnostic.matchMessage ? <Alert showIcon icon={<InfoCircleOutlined />} type={diagnostic.isMatched === false ? 'error' : 'info'} style={{ marginTop: 12 }} message={formatMatchMessage(diagnostic, resolvedMatchSource)} /> : null}
-                        {diagnostic.errorMessage ? <Alert showIcon type="error" style={{ marginTop: 12 }} message={diagnostic.errorMessage} /> : null}
+                        <Descriptions column={1} size="small" bordered labelStyle={diagnosticLabelStyle} contentStyle={diagnosticContentStyle}>
+                          <Descriptions.Item label="Confidence passed">{renderBooleanTag(diagnostic.confidencePassed)}</Descriptions.Item>
+                          <Descriptions.Item label="Match target">{matchTarget?.value || 'No target'}</Descriptions.Item>
+                        </Descriptions>
                       </Card>
                     );
                   })}
@@ -555,21 +589,70 @@ function renderBooleanTag(value) {
   return <Tag>Unknown</Tag>;
 }
 
-function formatMatchSource(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'extracted value') return 'extracted value';
-  if (normalized === 'extracted name') return 'extracted name';
-  if (normalized === 'extracted ic number') return 'extracted IC number';
-  if (normalized === 'ocr text fallback') return 'OCR text fallback';
-  return String(value);
+function buildCombinedDocumentDiagnostics(claim, diagnostics) {
+  const ocrItems = diagnostics.map((diagnostic) => ({
+    type: 'ocr',
+    key: `ocr-${diagnostic.key || diagnostic.documentName}`,
+    diagnostic,
+  }));
+
+  const fileItems = (claim?.documents || [])
+    .filter((document) => !findMatchingDiagnostic(document.label, diagnostics))
+    .map((document) => {
+      const extension = String(document.extension || extractExtension(document.fileName || document.url)).toLowerCase();
+      const supportedFormat = ['pdf', 'jpg', 'jpeg', 'png'].includes(extension);
+
+      return {
+        type: 'file',
+        key: `file-${document.key || document.label || document.url}`,
+        label: document.label || document.fileName || 'Uploaded document',
+        url: document.url,
+        extension,
+        supportedFormat,
+        message: supportedFormat
+          ? 'File is uploaded, readable by the portal, and available for officer review. OCR is not required for this document type.'
+          : 'File is uploaded, but the format should be checked manually because it is not PDF, JPG, JPEG, or PNG.',
+      };
+    });
+
+  return [...ocrItems, ...fileItems];
 }
 
-function getMatchSourceColor(value) {
-  const normalized = String(value || '').trim().toLowerCase();
-  if (normalized === 'ocr text fallback') return 'gold';
-  if (normalized === 'extracted ic number') return 'geekblue';
-  if (normalized === 'extracted name' || normalized === 'extracted value') return 'green';
-  return 'default';
+function findMatchingDiagnostic(label, diagnostics) {
+  const normalizedLabel = normalizeDocumentName(label);
+
+  return diagnostics.find((diagnostic) => {
+    const normalizedDiagnosticName = normalizeDocumentName(diagnostic.documentName);
+    return (
+      normalizedLabel === normalizedDiagnosticName ||
+      normalizedLabel.includes(normalizedDiagnosticName) ||
+      normalizedDiagnosticName.includes(normalizedLabel) ||
+      isGroupedOcrDocumentMatch(normalizedLabel, normalizedDiagnosticName)
+    );
+  });
+}
+
+function isGroupedOcrDocumentMatch(label, diagnosticName) {
+  return (
+    (label.includes('identity') && diagnosticName.includes('identity')) ||
+    (label.includes('driving license') && diagnosticName.includes('driving license')) ||
+    (label.includes('vehicle ownership') && diagnosticName.includes('vehicle ownership')) ||
+    (label.includes('police report') && diagnosticName.includes('police report'))
+  );
+}
+
+function normalizeDocumentName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/document|file/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function extractExtension(value) {
+  const fileName = String(value || '').split('?')[0].split('/').pop() || '';
+  const segments = fileName.split('.');
+  return segments.length > 1 ? segments[segments.length - 1] : '';
 }
 
 function resolveMatchSource(diagnostic) {
@@ -581,15 +664,6 @@ function resolveMatchSource(diagnostic) {
   if (message.includes('extracted value')) return 'Extracted value';
   if (message.includes('from extracted value or ocr text')) return 'Extracted value / OCR text';
   return null;
-}
-
-function formatMatchMessage(diagnostic, resolvedMatchSource) {
-  if (!diagnostic.matchMessage) return '';
-  if (diagnostic.matchSource) return diagnostic.matchMessage;
-  if (resolvedMatchSource === 'Extracted value / OCR text') {
-    return `${diagnostic.matchMessage} The backend did not specify which one was used in this response.`;
-  }
-  return diagnostic.matchMessage;
 }
 
 function buildDiagnosticDetails(diagnostic, resolvedMatchSource) {

@@ -30,27 +30,9 @@ function OfficerPortal() {
     <Routes>
       <Route
         index
-        element={
-          <Navigate
-            to={
-              isAuthenticated
-                ? getPortalPath(PORTAL_KEYS.OFFICER, '/dashboard')
-                : getPortalPath(PORTAL_KEYS.OFFICER, '/auth')
-            }
-            replace
-          />
-        }
+        element={<Navigate to={getPortalPath(PORTAL_KEYS.OFFICER, '/auth')} replace />}
       />
-      <Route
-        path="auth"
-        element={
-          isAuthenticated ? (
-            <Navigate to={getPortalPath(PORTAL_KEYS.OFFICER, '/dashboard')} replace />
-          ) : (
-            <OfficerAuthScreen onAuthenticated={handleAuthenticated} />
-          )
-        }
-      />
+      <Route path="auth" element={<OfficerAuthScreen onAuthenticated={handleAuthenticated} />} />
       <Route
         path="*"
         element={

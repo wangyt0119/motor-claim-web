@@ -4,19 +4,15 @@ import {
   AppstoreOutlined,
   PlusCircleOutlined, 
   LineChartOutlined, 
-  HistoryOutlined, 
   BellOutlined, 
-  QuestionCircleOutlined,
   CustomerServiceOutlined,
-  FileTextOutlined,
   LogoutOutlined,
   UserOutlined,
-  ToolOutlined
+  ToolOutlined,
 } from '@ant-design/icons';
 import { Routes, Route, useNavigate, Navigate, useLocation } from 'react-router-dom';
 import SubmitClaimScreen from './SubmitClaimScreen';
 import CustomerClaimTracker from './CustomerClaimTracker';
-import ClaimHistoryScreen from './ClaimHistoryScreen';
 import CustomerNotificationScreen from './CustomerNotificationScreen';
 import PanelWorkshopListScreen from './PanelWorkshopListScreen';
 import CustomerDashboardScreen from './CustomerDashboardScreen';
@@ -25,6 +21,7 @@ import '../styles/MainScreen.css';
 import { getMyClaims } from '../services/claimService';
 import { getMyCoverages } from '../services/coverageService';
 import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
+import ContactSupportScreen from './ContactSupport';
 
 const { Sider, Content } = Layout;
 const { Text } = Typography;
@@ -157,14 +154,6 @@ function MainScreen({ onSignOut, currentUser }) {
             </Menu.Item>
             
             <Menu.Item 
-              key="history" 
-              icon={<HistoryOutlined />}
-              onClick={() => handleMenuClick('history')}
-            >
-              <span>Claim History</span>
-            </Menu.Item>
-            
-            <Menu.Item 
               key="notifications" 
               icon={<BellOutlined />}
               onClick={() => handleMenuClick('notifications')}
@@ -173,19 +162,11 @@ function MainScreen({ onSignOut, currentUser }) {
             </Menu.Item>
 
             <Menu.Item
-              key="panel-workshop"
-              icon={<ToolOutlined />}
-              onClick={() => handleMenuClick('panel-workshop')}
-            >
-              <span>Panel Workshop</span>
-            </Menu.Item>
-
-            <Menu.Item
               key="profile"
               icon={<UserOutlined />}
               onClick={() => handleMenuClick('profile')}
             >
-              <span>Profile</span>
+              <span>My Profile</span>
             </Menu.Item>
           </Menu>
           
@@ -195,15 +176,24 @@ function MainScreen({ onSignOut, currentUser }) {
             </Text>
           </Divider>
           
-          <Menu mode="inline" className="support-menu">
-            <Menu.Item key="help" icon={<QuestionCircleOutlined />}>
-              Help & FAQ
-            </Menu.Item>
-            <Menu.Item key="support" icon={<CustomerServiceOutlined />}>
+          <Menu
+            mode="inline"
+            selectedKeys={[selectedKey]}
+            className="support-menu"
+          >
+            <Menu.Item
+              key="contact-support"
+              icon={<CustomerServiceOutlined />}
+              onClick={() => handleMenuClick('contact-support')}
+            >
               Contact Support
             </Menu.Item>
-            <Menu.Item key="policy" icon={<FileTextOutlined />}>
-              Policy Details
+            <Menu.Item
+              key="panel-workshop"
+              icon={<ToolOutlined />}
+              onClick={() => handleMenuClick('panel-workshop')}
+            >
+              <span>Panel Workshop</span>
             </Menu.Item>
           </Menu>
           
@@ -235,12 +225,12 @@ function MainScreen({ onSignOut, currentUser }) {
             }
           />
           <Route path="submit" element={<SubmitClaimScreen onSubmit={addNewClaim} />} />
-          <Route path="track" element={<CustomerClaimTracker claims={claims} onClaimsChanged={refreshClaims} />} />
-          <Route path="history" element={<ClaimHistoryScreen claims={claims} coverages={coverages} />} />
+          <Route path="track" element={<CustomerClaimTracker claims={claims} coverages={coverages} onClaimsChanged={refreshClaims} />} />
           <Route
             path="notifications"
             element={<CustomerNotificationScreen claims={claims} currentUser={currentUser} />}
           />
+          <Route path="contact-support" element={<ContactSupportScreen />} />
           <Route path="panel-workshop" element={<PanelWorkshopListScreen />} />
           <Route
             path="profile"
@@ -248,6 +238,8 @@ function MainScreen({ onSignOut, currentUser }) {
               <ProfileScreen
                 heading="My Profile"
                 description="Review your customer account details."
+                theme="customer"
+                fallbackProfile={currentUser}
               />
             }
           />
@@ -259,12 +251,6 @@ function MainScreen({ onSignOut, currentUser }) {
 }
 
 export default MainScreen;
-
-
-
-
-
-
 
 
 

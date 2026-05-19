@@ -33,6 +33,51 @@ Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
 The page will reload when you make changes.\
 You may also see any lint errors in the console.
 
+### Actor-specific app folders
+
+Each portal now has its own launcher folder in the repo root:
+
+- `customer/`
+- `admin/`
+- `officer/`
+- `panel-workshop/`
+
+From any of those folders, you can run:
+
+```bash
+npm start
+```
+
+That starts only the selected portal.
+
+Default development ports are:
+
+- root app selector: `3000`
+- customer: `3001`
+- admin: `3002`
+- officer: `3003`
+- panel workshop: `3004`
+
+You can also build only that portal from the same folder:
+
+```bash
+npm run build
+```
+
+Build outputs are written to:
+
+- `build/main`
+- `build/customer`
+- `build/admin`
+- `build/officer`
+- `build/panel-workshop`
+
+You can still run everything together from the repo root with:
+
+```bash
+npm start
+```
+
 ### `npm test`
 
 Launches the test runner in the interactive watch mode.\

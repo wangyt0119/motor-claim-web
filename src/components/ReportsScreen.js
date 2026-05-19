@@ -835,29 +835,29 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
-      <Row justify="space-between" align="middle">
-        <Col>
-          <Title level={2}>Claims Reports & Analytics</Title>
-          <Text type="secondary" style={{ fontSize: 16 }}>
-            Generate comprehensive reports and insights
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft">
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Officer Analytics</span>
+          <Title level={2} className="portal-dashboard-title">Claims Reports & Analytics</Title>
+          <Text className="portal-dashboard-description">
+            Generate comprehensive reports and insights from claim performance and review outcomes.
           </Text>
-        </Col>
-        <Col>
-          <Tag 
-            icon={<BarChartOutlined />} 
-            color="#4CAF50"
-            style={{ 
-              padding: '8px 16px', 
-              fontSize: 14,
-              fontWeight: 600,
-              borderRadius: 8
-            }}
-          >
-            {allClaims.length} Total Claims
-          </Tag>
-        </Col>
-      </Row>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Total Claims</span>
+              <span className="portal-dashboard-chip-value">{allClaims.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Generated</span>
+              <span className="portal-dashboard-chip-value">{hasGeneratedReport ? 'Yes' : 'No'}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Date Range</span>
+              <span className="portal-dashboard-chip-value">{startDate.format('DD MMM')} - {endDate.format('DD MMM')}</span>
+            </div>
+          </div>
+        </div>
+      </div>
       
         {/* Main Content */}
       <Row gutter={24} style={{ marginTop: 24 }}>

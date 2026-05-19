@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import {
-  Alert,
   Button,
   Card,
   Col,
@@ -158,6 +157,23 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
       ),
     },
     {
+      title: 'Email',
+      key: 'email',
+      width: 200,
+      render: (_, claim) => (
+        <Space direction="vertical" size={4}>
+          <Tag color={getEmailStatusColor(claim.emailNotificationSent)}>
+            {formatEmailStatus(claim.emailNotificationSent)}
+          </Tag>
+          {claim.emailNotificationMessage ? (
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {claim.emailNotificationMessage}
+            </Text>
+          ) : null}
+        </Space>
+      ),
+    },
+    {
       title: 'Actions',
       key: 'actions',
       width: 120,
@@ -172,22 +188,31 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
 
   return (
     <div style={{ padding: 24 }}>
-      <div style={{ marginBottom: 20 }}>
-        <Title level={2} style={{ marginBottom: 6 }}>
-          All Claims
-        </Title>
-        <Text type="secondary">
-          Review live claims with cleaner workflow filters, STP outcome, backend validation reasons, and uploaded documents.
-        </Text>
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft" style={{ marginBottom: 20 }}>
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Officer Review</span>
+          <Title level={2} className="portal-dashboard-title">
+            All Claims
+          </Title>
+          <Text className="portal-dashboard-description">
+            Review live claims with cleaner workflow filters, STP outcome, backend validation reasons, and uploaded documents.
+          </Text>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Total Claims</span>
+              <span className="portal-dashboard-chip-value">{totalClaims}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">STP Passed</span>
+              <span className="portal-dashboard-chip-value">{stpPassedCount}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Manual Review</span>
+              <span className="portal-dashboard-chip-value">{manualReviewCount}</span>
+            </div>
+          </div>
+        </div>
       </div>
-
-      <Alert
-        type="info"
-        showIcon
-        style={{ marginBottom: 20 }}
-        message="Officer Access"
-        description="This screen combines GET /api/Claim/all with GET /api/Coverage/all-coverages, so each review can keep the submitted claim details first while still showing the related policy holder, vehicle, and coverage period."
-      />
 
       <Row gutter={[16, 16]} style={{ marginBottom: 20 }}>
         <Col xs={24} md={8}>
@@ -331,6 +356,30 @@ function formatStpStatus(status) {
   }
 
   return String(status);
+}
+
+function formatEmailStatus(value) {
+  if (value === true) {
+    return 'Email sent';
+  }
+
+  if (value === false) {
+    return 'Email failed';
+  }
+
+  return 'No status';
+}
+
+function getEmailStatusColor(value) {
+  if (value === true) {
+    return 'success';
+  }
+
+  if (value === false) {
+    return 'error';
+  }
+
+  return 'default';
 }
 
 export default AllClaimsOfficerScreen;

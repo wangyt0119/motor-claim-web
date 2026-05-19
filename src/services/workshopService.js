@@ -90,6 +90,11 @@ export async function getWorkshopPaymentByEstimate(estimateId) {
   return mapWorkshopPayment(response.data?.data ?? response.data ?? {});
 }
 
+export async function getMyWorkshopPaymentByEstimate(estimateId) {
+  const response = await apiClient.get(`/Workshop/repair-estimates/${estimateId}/payment/customer`);
+  return mapWorkshopPayment(response.data?.data ?? response.data ?? {});
+}
+
 export async function approveWorkshopRepairEstimate(estimateId, reviewNote) {
   const response = await apiClient.post(`/Workshop/repair-estimates/${estimateId}/approve`, {
     reviewNote: reviewNote || null,

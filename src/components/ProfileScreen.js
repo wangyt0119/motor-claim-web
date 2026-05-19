@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Alert,
   Button,
@@ -34,7 +34,7 @@ const mobileCountryOptions = [
   { label: 'Philippines', value: 5 },
 ];
 
-function ProfileScreen({ heading = 'Profile', description = 'Review your account details.' }) {
+function ProfileScreen({ heading = 'Profile', description = 'Review your account details.', theme = 'default', fallbackProfile = null }) {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
   const [accountModalOpen, setAccountModalOpen] = useState(false);
@@ -45,10 +45,8 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
   const [workshopForm] = Form.useForm();
 
   const selectedIdType = Form.useWatch('idType', accountForm);
-
-  useEffect(() => {
-    loadProfile();
-  }, []);
+  const isSoftTheme = theme === 'workshop' || theme === 'customer';
+  const profileLabel = theme === 'workshop' ? 'Workshop Profile' : 'My Profile';
 
   const workshopPhoneText = useMemo(
     () => (Array.isArray(profile?.workshop?.phone) ? profile.workshop.phone.join(', ') : ''),
@@ -60,17 +58,25 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
     [profile]
   );
 
-  async function loadProfile() {
+  const loadProfile = useCallback(async () => {
     setLoading(true);
     try {
       const result = await getMyProfile();
-      setProfile(result);
+      setProfile(result || normalizeFallbackProfile(fallbackProfile));
     } catch (error) {
+      const fallback = normalizeFallbackProfile(fallbackProfile);
+      if (fallback) {
+        setProfile(fallback);
+      }
       message.error(error?.response?.data?.message || error?.message || 'Unable to load profile details.');
     } finally {
       setLoading(false);
     }
-  }
+  }, [fallbackProfile]);
+
+  useEffect(() => {
+    loadProfile();
+  }, [loadProfile]);
 
   function openAccountEditor() {
     if (!profile) {
@@ -116,13 +122,13 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
     try {
       const updated = await updateMyProfile({
         fullName: values.fullName,
-        idType: values.idType,
-        nric: values.idType === 1 ? values.nric : null,
+        idType: profile.idType,
+        nric: Number(profile.idType) === 1 ? profile.nric : null,
         passportNo: values.idType === 2 ? values.passportNo : null,
         issueCountry: values.idType === 2 ? values.issueCountry : null,
         mobileCountry: values.mobileCountry,
         mobileNumber: values.mobileNumber,
-        email: values.email,
+        email: profile.email,
       });
 
       setProfile(updated);
@@ -146,7 +152,7 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
         address: values.address,
         phone: parseCommaSeparatedText(values.phone),
         fax: values.fax || null,
-        email: parseCommaSeparatedText(values.email),
+        email: Array.isArray(profile.workshop.email) ? profile.workshop.email : [],
         bankName: values.bankName || null,
         bankAccountNumber: values.bankAccountNumber || null,
         bankAccountHolderName: values.bankAccountHolderName || null,
@@ -163,17 +169,44 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <Title level={2}>{heading}</Title>
-      <Text type="secondary">{description}</Text>
+    <div className="portal-dashboard-stack">
+      <div className={`portal-dashboard-hero${isSoftTheme ? ' portal-dashboard-theme-soft' : ''}`}>
+        <div className="portal-dashboard-hero-content">
+          <span className={`portal-dashboard-kicker${isSoftTheme ? ' portal-dashboard-kicker-soft' : ''}`}>
+            {profileLabel}
+          </span>
+          <Title level={2} className="portal-dashboard-title">{heading}</Title>
+          <Text className="portal-dashboard-description">{description}</Text>
+          {theme === 'workshop' ? (
+            <div className="portal-dashboard-chip-row">
+              <div className={`portal-dashboard-chip${isSoftTheme ? ' portal-dashboard-chip-soft' : ''}`}>
+                <span className="portal-dashboard-chip-label">Account</span>
+                <span className="portal-dashboard-chip-value">{profile?.fullName ? 'Ready' : 'Pending'}</span>
+              </div>
+              <div className={`portal-dashboard-chip${isSoftTheme ? ' portal-dashboard-chip-soft' : ''}`}>
+                <span className="portal-dashboard-chip-label">Workshop</span>
+                <span className="portal-dashboard-chip-value">{profile?.workshop?.name ? 'Connected' : 'Unavailable'}</span>
+              </div>
+              <div className={`portal-dashboard-chip${isSoftTheme ? ' portal-dashboard-chip-soft' : ''}`}>
+                <span className="portal-dashboard-chip-label">Bank</span>
+                <span className="portal-dashboard-chip-value">{profile?.workshop?.bankName ? 'Saved' : 'Pending'}</span>
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </div>
 
-      <div style={{ marginTop: 24 }}>
+      <div>
         {loading ? (
           <div style={{ padding: 48, textAlign: 'center' }}>
             <Spin />
           </div>
         ) : !profile ? (
-          <Empty description="Profile not available" />
+          <Card className="portal-dashboard-card" style={{ borderRadius: 16 }}>
+            <Empty description="Profile not available">
+              <Button type="primary" onClick={loadProfile}>Reload Profile</Button>
+            </Empty>
+          </Card>
         ) : (
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Card
@@ -184,7 +217,8 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
                 </Space>
               }
               extra={<Button onClick={openAccountEditor}>Edit</Button>}
-              style={{ borderRadius: 12 }}
+              className="portal-dashboard-card"
+              style={{ borderRadius: 16 }}
             >
               <Descriptions bordered column={1} size="small">
                 <Descriptions.Item label="Full name">{profile.fullName || 'Not available'}</Descriptions.Item>
@@ -210,7 +244,8 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
                   </Space>
                 }
                 extra={<Button onClick={openWorkshopEditor}>Edit</Button>}
-                style={{ borderRadius: 12 }}
+                className="portal-dashboard-card"
+                style={{ borderRadius: 16 }}
               >
                 <Descriptions bordered column={1} size="small">
                   <Descriptions.Item label="Workshop name">{profile.workshop.name || 'Not available'}</Descriptions.Item>
@@ -241,7 +276,8 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
                     <span>Bank Details</span>
                   </Space>
                 }
-                style={{ borderRadius: 12 }}
+                className="portal-dashboard-card"
+                style={{ borderRadius: 16 }}
               >
                 <Descriptions bordered column={1} size="small">
                   <Descriptions.Item label="Bank name">{profile.workshop.bankName || 'Not available'}</Descriptions.Item>
@@ -274,11 +310,11 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
             <Input />
           </Form.Item>
           <Form.Item name="idType" label="ID Type" rules={[{ required: true, message: 'ID type is required.' }]}>
-            <Select options={idTypeOptions} />
+            <Select options={idTypeOptions} disabled />
           </Form.Item>
           {selectedIdType === 1 ? (
             <Form.Item name="nric" label="NRIC" rules={[{ required: true, message: 'NRIC is required.' }]}>
-              <Input />
+              <Input disabled />
             </Form.Item>
           ) : null}
           {selectedIdType === 2 ? (
@@ -298,8 +334,13 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
             <Input />
           </Form.Item>
           <Form.Item name="email" label="Email" rules={[{ required: true, message: 'Email is required.' }, { type: 'email', message: 'Enter a valid email.' }]}>
-            <Input />
+            <Input disabled />
           </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            description="If you need to change your NRIC/Passport or email, Please contact etiqasupport@etiqa.com.my."
+          />
         </Form>
       </Modal>
 
@@ -329,7 +370,7 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
             <Input />
           </Form.Item>
           <Form.Item name="email" label="Workshop Emails">
-            <Input placeholder="Separate multiple email addresses with commas" />
+            <Input disabled placeholder="Separate multiple email addresses with commas" />
           </Form.Item>
           <Form.Item name="bankName" label="Bank Name">
             <Input />
@@ -340,6 +381,12 @@ function ProfileScreen({ heading = 'Profile', description = 'Review your account
           <Form.Item name="bankAccountHolderName" label="Bank Account Holder Name">
             <Input />
           </Form.Item>
+          <Alert
+            type="info"
+            showIcon
+            message="Workshop email changes"
+            description="Workshop email cannot be edited here. If you need to change the registered workshop email, please contact etiqasupport@etiqa.com.my."
+          />
         </Form>
       </Modal>
     </div>
@@ -351,6 +398,28 @@ function parseCommaSeparatedText(value) {
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function normalizeFallbackProfile(user) {
+  if (!user || typeof user !== 'object') {
+    return null;
+  }
+
+  return {
+    userId: user.userId ?? user.UserId ?? null,
+    fullName: user.fullName ?? user.FullName ?? '',
+    idType: user.idType ?? user.IdType ?? null,
+    nric: user.nric ?? user.Nric ?? user.NRIC ?? null,
+    passportNo: user.passportNo ?? user.PassportNo ?? null,
+    issueCountry: user.issueCountry ?? user.IssueCountry ?? null,
+    mobileCountry: user.mobileCountry ?? user.MobileCountry ?? null,
+    mobileNumber: user.mobileNumber ?? user.MobileNumber ?? '',
+    email: user.email ?? user.Email ?? '',
+    isMaybankGroupEmployee: user.isMaybankGroupEmployee ?? user.IsMaybankGroupEmployee ?? false,
+    role: user.role ?? user.Role ?? null,
+    workshopId: user.workshopId ?? user.WorkshopId ?? null,
+    workshop: user.workshop ?? user.Workshop ?? null,
+  };
 }
 
 function formatRole(role) {

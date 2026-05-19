@@ -5,7 +5,6 @@ import {
   Divider, Alert, Checkbox, Spin, Empty
 } from 'antd';
 import { 
-  CarOutlined, 
   CalendarOutlined, 
   UploadOutlined, 
   ArrowLeftOutlined, 
@@ -174,6 +173,10 @@ function SubmitClaimScreen({ onSubmit }) {
     return Object.values(filesMap).flat().reduce((sum, file) => sum + (file?.size || 0), 0);
   };
 
+  const getMissingRequiredDocuments = () => {
+    return getRequiredDocuments().filter((doc) => !(documentFiles[doc.key] && documentFiles[doc.key].length > 0));
+  };
+
   const handleDocumentUpload = (documentKey) => ({ fileList }) => {
     const normalizedList = fileList.slice(-1);
     const nextFiles = { ...documentFiles, [documentKey]: normalizedList };
@@ -229,19 +232,45 @@ function SubmitClaimScreen({ onSubmit }) {
           }
           return true;
         case 2: {
-          return true;
-        }
-        case 3: {
+          await form.validateFields(['incidentDescription']);
+
           if (!incidentDescription.trim()) {
             message.error('Please describe the incident in detail');
             return false;
           }
-          const requiredDocs = getRequiredDocuments();
-          const missingDoc = requiredDocs.find((doc) => !(documentFiles[doc.key] && documentFiles[doc.key].length > 0));
-          if (missingDoc) {
-            message.error(`Please upload: ${missingDoc.label}`);
+
+          const missingDocs = getMissingRequiredDocuments();
+          if (missingDocs.length > 0) {
+            message.error(`Please upload all required documents. Missing: ${missingDocs[0].label}`);
             return false;
           }
+
+          return true;
+        }
+        case 3: {
+          await form.validateFields(['incidentDate', 'incidentDescription']);
+
+          if (!incidentDateString) {
+            message.error('Please select the incident date');
+            return false;
+          }
+
+          if (!selectedCoverage) {
+            message.error('Please select one coverage');
+            return false;
+          }
+
+          if (!incidentDescription.trim()) {
+            message.error('Please describe the incident in detail');
+            return false;
+          }
+
+          const missingDoc = getMissingRequiredDocuments()[0];
+          if (missingDoc) {
+            message.error(`Please upload all required documents. Missing: ${missingDoc.label}`);
+            return false;
+          }
+
           return true;
         }
         default:
@@ -360,7 +389,15 @@ function SubmitClaimScreen({ onSubmit }) {
   // Build custom step indicator
   const buildStepIndicator = () => {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 32 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          marginBottom: 10,
+          marginTop: 12,
+          padding: '0 4px',
+        }}
+      >
         {buildStepIndicatorItem({
           number: 1,
           title: "Incident Information",
@@ -590,6 +627,7 @@ function SubmitClaimScreen({ onSubmit }) {
   const buildDocumentsStep = () => {
     const documentSections = vehicleDamageDocumentSections;
     const requiredDocs = getRequiredDocuments();
+    const missingDocs = getMissingRequiredDocuments();
     const uploadedCount = requiredDocs.filter((doc) => (documentFiles[doc.key] || []).length > 0).length;
     const totalSizeMB = (getTotalUploadSize(documentFiles) / (1024 * 1024)).toFixed(2);
 
@@ -627,9 +665,16 @@ function SubmitClaimScreen({ onSubmit }) {
 
           <Alert
             style={{ marginTop: 12, marginBottom: 16 }}
-            type="info"
+            type={missingDocs.length > 0 || !incidentDescription.trim() ? 'warning' : 'success'}
             showIcon
             message={`Uploaded ${uploadedCount}/${requiredDocs.length} required document(s) | Total size: ${totalSizeMB} MB / 20 MB`}
+            description={
+              missingDocs.length > 0 || !incidentDescription.trim()
+                ? `Complete the incident description and upload every document before continuing. Missing documents: ${
+                    missingDocs.map((doc) => doc.label).join(', ') || 'None'
+                  }`
+                : 'All required supporting information is complete.'
+            }
           />
 
           {documentSections.map((section, sectionIndex) => (
@@ -820,7 +865,7 @@ function SubmitClaimScreen({ onSubmit }) {
             
             {buildReviewSection({
               title: 'Select Coverage',
-              icon: <CarOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
+              icon: <CalendarOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
               items: selectedCoverageDetails
                 ? [{
                     label: 'Selected Coverage',
@@ -877,7 +922,7 @@ function SubmitClaimScreen({ onSubmit }) {
   };
   
   return (
-    <div style={{ padding: '24px' }}>
+    <div className="portal-dashboard-stack">
       <Modal
         open={successModalOpen}
         title={null}
@@ -1010,28 +1055,33 @@ function SubmitClaimScreen({ onSubmit }) {
         </div>
       </Modal>
 
-      <div style={{ textAlign: 'center', marginBottom: 32 }}>
-        <div 
-          style={{ 
-            display: 'inline-flex',
-            justifyContent: 'center',
-            alignItems: 'center',
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            backgroundColor: '#FFF3E0',
-            marginBottom: 16
-          }}
-        >
-          <CarOutlined style={{ fontSize: 40, color: '#FF6600' }} />
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft">
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Submit Claim</span>
+          <Title level={2} className="portal-dashboard-title">Vehicle Claim</Title>
+          <Text className="portal-dashboard-description">
+            Complete all steps to submit your claim.
+          </Text>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Current Step</span>
+              <span className="portal-dashboard-chip-value">{currentStep + 1}/4</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Coverages</span>
+              <span className="portal-dashboard-chip-value">{coverageOptions.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Documents</span>
+              <span className="portal-dashboard-chip-value">{Object.values(documentFiles).filter((files) => files?.length).length}</span>
+            </div>
+          </div>
         </div>
-        <Title level={2} style={{ margin: 0 }}>Vehicle Claim</Title>
-        <Text type="secondary">Complete all steps to submit your claim</Text>
       </div>
-      
+
       {buildStepIndicator()}
       
-      <div style={{ margin: '32px 0' }}>
+      <div style={{ margin: '6px 0 20px' }}>
         {submitError ? (
           <Alert
             type="error"

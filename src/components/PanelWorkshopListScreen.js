@@ -70,14 +70,35 @@ function PanelWorkshopListScreen() {
   }
 
   return (
-    <div style={{ padding: 24 }}>
-      <Title level={2}>Panel Workshop</Title>
-      <Text type="secondary">Find an approved panel workshop by state before choosing your repair appointment.</Text>
+    <div className="portal-dashboard-stack">
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft">
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Panel Workshop</span>
+          <Title level={2} className="portal-dashboard-title">Panel Workshop</Title>
+          <Text className="portal-dashboard-description">
+            Find an approved panel workshop by state before choosing your repair appointment.
+          </Text>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">States</span>
+              <span className="portal-dashboard-chip-value">{states.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Selected State</span>
+              <span className="portal-dashboard-chip-value">{selectedState || 'None'}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Workshops</span>
+              <span className="portal-dashboard-chip-value">{filteredWorkshops.length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <Alert
         showIcon
         type="info"
-        style={{ marginTop: 16, marginBottom: 24 }}
+        style={{ marginBottom: 24 }}
         message="Search by state"
         description="Choose a state on the left, then search by workshop name, address, phone, fax, or email."
       />

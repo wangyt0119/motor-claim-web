@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Alert,
   Button,
@@ -19,6 +20,7 @@ import { LockOutlined, LoginOutlined, MailOutlined, UserAddOutlined, UserOutline
 import { loginCustomer, registerCustomer } from '../services/authService';
 import '../styles/AuthScreen.css';
 import { USER_ROLE, normalizeRole } from '../constants/userRoles';
+import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
 const { Title, Text, Paragraph } = Typography;
 
@@ -166,7 +168,7 @@ function AuthScreen({ onAuthenticated }) {
           </Space>
         </div>
 
-        <Card className="auth-card" bordered={false}>
+        <Card className="auth-card" variant="borderless">
           <Tabs
             activeKey={activeTab}
             onChange={setActiveTab}
@@ -219,6 +221,12 @@ function AuthScreen({ onAuthenticated }) {
                         autoComplete="current-password"
                       />
                     </Form.Item>
+
+                    <div className="auth-form__linkRow">
+                      <Link to={getPortalPath(PORTAL_KEYS.CUSTOMER, '/forgot-password')}>
+                        Forgot password?
+                      </Link>
+                    </div>
 
                     <Button
                       type="primary"

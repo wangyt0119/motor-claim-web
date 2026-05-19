@@ -3,6 +3,8 @@ import { normalizeRole } from '../constants/userRoles';
 
 const LOGIN_PATH = process.env.REACT_APP_LOGIN_PATH || '/Auth/login';
 const REGISTER_PATH = process.env.REACT_APP_REGISTER_PATH || '/auth/register';
+const FORGOT_PASSWORD_PATH = process.env.REACT_APP_FORGOT_PASSWORD_PATH || '/Auth/forgot-password';
+const RESET_PASSWORD_PATH = process.env.REACT_APP_RESET_PASSWORD_PATH || '/Auth/reset-password';
 
 function normalizeSession(data, fallbackUser = null) {
   const payload = data?.data ?? data ?? {};
@@ -63,6 +65,20 @@ export async function registerCustomer(registrationData) {
     role: 1,
     workshopId: null,
   });
+}
+
+export async function forgotPassword(email) {
+  const response = await apiClient.post(FORGOT_PASSWORD_PATH, { email });
+  return response.data?.data ?? response.data ?? {};
+}
+
+export async function resetPassword({ token, newPassword, confirmPassword }) {
+  const response = await apiClient.post(RESET_PASSWORD_PATH, {
+    token,
+    newPassword,
+    confirmPassword,
+  });
+  return response.data?.data ?? response.data ?? {};
 }
 
 export async function getMyProfile() {

@@ -4,11 +4,17 @@ import { UserOutlined, TeamOutlined, ToolOutlined, SafetyCertificateOutlined, Ar
 import { useNavigate } from 'react-router-dom';
 import '../styles/AppSelector.css';
 import { getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
+import { clearAllPortalSessions } from '../utils/portalSessionStorage';
 
 const { Title, Text, Paragraph } = Typography;
 
 function AppSelector() {
   const navigate = useNavigate();
+
+  const openPortal = (portalKey) => {
+    clearAllPortalSessions();
+    navigate(getPortalPath(portalKey, '/auth'));
+  };
 
   const customerFeatures = [
     'Submit New Motor Claims',
@@ -132,7 +138,7 @@ function AppSelector() {
               icon={<UserOutlined />}
               color="#2196F3"
               features={customerFeatures}
-              onClick={() => navigate(getPortalPath(PORTAL_KEYS.CUSTOMER, '/auth'))}
+              onClick={() => openPortal(PORTAL_KEYS.CUSTOMER)}
             />
           </Col>
           
@@ -144,7 +150,7 @@ function AppSelector() {
               icon={<TeamOutlined />}
               color="#FF6600"
               features={officerFeatures}
-              onClick={() => navigate(getPortalPath(PORTAL_KEYS.OFFICER, '/auth'))}
+              onClick={() => openPortal(PORTAL_KEYS.OFFICER)}
             />
           </Col>
 
@@ -156,7 +162,7 @@ function AppSelector() {
               icon={<SafetyCertificateOutlined />}
               color="#B45309"
               features={adminFeatures}
-              onClick={() => navigate(getPortalPath(PORTAL_KEYS.ADMIN, '/auth'))}
+              onClick={() => openPortal(PORTAL_KEYS.ADMIN)}
             />
           </Col>
 
@@ -168,7 +174,7 @@ function AppSelector() {
               icon={<ToolOutlined />}
               color="#0F766E"
               features={workshopFeatures}
-              onClick={() => navigate(getPortalPath(PORTAL_KEYS.PANEL_WORKSHOP, '/auth'))}
+              onClick={() => openPortal(PORTAL_KEYS.PANEL_WORKSHOP)}
             />
           </Col>
         </Row>

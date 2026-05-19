@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useCallback } from 'react';
 import { 
   Card, Typography, Table, Tag, Button, Space, Input, 
-  Row, Col, Select, Progress, Badge,
+  Row, Col, Select, Progress,
   Empty, Modal, Steps, Timeline, List, Avatar, Spin
 } from 'antd';
 import { 
@@ -11,7 +11,6 @@ import {
   CheckCircleOutlined, 
   WarningOutlined,
   LoadingOutlined,
-  BarChartOutlined,
   QuestionCircleOutlined,
   FolderOutlined,
   FilePdfOutlined,
@@ -165,8 +164,9 @@ function TrackValidationProcess({ claims = [], loading = false, onRefresh = null
   };
 
   const getDocumentIcon = (filename) => {
-    if (filename.toLowerCase().includes('.pdf')) return <FilePdfOutlined />;
-    if (filename.toLowerCase().includes('.jpg') || filename.toLowerCase().includes('.png')) return <FileImageOutlined />;
+    const value = typeof filename === 'string' ? filename : filename?.fileName || filename?.label || '';
+    if (value.toLowerCase().includes('.pdf')) return <FilePdfOutlined />;
+    if (value.toLowerCase().includes('.jpg') || value.toLowerCase().includes('.jpeg') || value.toLowerCase().includes('.png')) return <FileImageOutlined />;
     return <FileOutlined />;
   };
 
@@ -358,9 +358,25 @@ function TrackValidationProcess({ claims = [], loading = false, onRefresh = null
                             style={{ backgroundColor: '#f0f0f0', color: '#6C757D' }} 
                           />
                         }
-                        title={doc}
+                        title={
+                          <Space wrap>
+                            <Text strong>{doc.label}</Text>
+                            <Tag color={getDocumentValidationColor(doc.status)}>{doc.status}</Tag>
+                            {doc.ocrStatus ? <Tag color={getDocumentValidationColor(doc.ocrStatus)}>{doc.ocrStatus}</Tag> : null}
+                          </Space>
+                        }
+                        description={
+                          <Space direction="vertical" size={4}>
+                            <Text type="secondary">{doc.fileName}</Text>
+                            <Text type="secondary">{doc.message}</Text>
+                          </Space>
+                        }
                       />
-                      <CheckCircleOutlined style={{ color: '#4CAF50' }} />
+                      {doc.status === 'Issue Found' ? (
+                        <WarningOutlined style={{ color: '#FF9800' }} />
+                      ) : (
+                        <CheckCircleOutlined style={{ color: '#4CAF50' }} />
+                      )}
                     </List.Item>
                   )}
                 />
@@ -436,35 +452,29 @@ function TrackValidationProcess({ claims = [], loading = false, onRefresh = null
 
   return (
     <div style={{ padding: 24 }}>
-      {/* Header */}
-      <Row justify="space-between" align="middle" style={{ marginBottom: 32 }}>
-        <Col>
-          <Title level={2} style={{ marginBottom: 8 }}>Track Validation Process</Title>
-          <Text type="secondary" style={{ fontSize: 16 }}>
-            Monitor claim validation and routing process
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft" style={{ marginBottom: 24 }}>
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Officer Review</span>
+          <Title level={2} className="portal-dashboard-title">Track Validation Process</Title>
+          <Text className="portal-dashboard-description">
+            Monitor claim validation and routing progress in one view.
           </Text>
-        </Col>
-        <Col>
-          <Badge 
-            count={validationClaims.length} 
-            style={{ backgroundColor: '#4CAF50' }}
-          >
-            <Button
-              icon={<BarChartOutlined />} 
-              style={{ 
-                backgroundColor: '#E8F5E9', 
-                color: '#4CAF50',
-                border: '1px solid #C8E6C9',
-                borderRadius: 8,
-                padding: '0 16px'
-              }}
-              onClick={() => onRefresh?.()}
-            >
-              Claims
-            </Button>
-          </Badge>
-        </Col>
-      </Row>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Claims</span>
+              <span className="portal-dashboard-chip-value">{validationClaims.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Shown</span>
+              <span className="portal-dashboard-chip-value">{filteredClaims.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Refresh</span>
+              <span className="portal-dashboard-chip-value" style={{ cursor: 'pointer' }} onClick={() => onRefresh?.()}>Now</span>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* Search and Filters */}
       <Card style={{ marginBottom: 24, borderRadius: 12 }}>
@@ -568,7 +578,7 @@ function mapClaimToValidationClaim(claim) {
   const submissionDate = claim.createdAt || claim.date || claim.incidentDate || new Date();
   const validation = claim.validationResult || null;
   const coverage = claim.coverage || null;
-  const documents = (claim.documents || []).map((document) => document.fileName || document.label || 'Document');
+  const documents = buildDocumentValidationChecklist(claim, validation);
   const policyStatus = resolvePolicyStatus(coverage);
   const aiAssessment = resolveAiAssessment(claim, validation);
   const routingStatus = resolveRoutingStatus(claim, validation);
@@ -577,7 +587,7 @@ function mapClaimToValidationClaim(claim) {
   return createValidationClaim({
     claimId: claim.id,
     submissionDate,
-    documentStatus: validation?.isDocumentComplete ? 'Complete' : documents.length > 0 ? 'Incomplete' : 'Incomplete',
+    documentStatus: documents.length > 0 && documents.every((document) => document.status !== 'Issue Found') ? 'Complete' : 'Incomplete',
     aiAssessment,
     policyStatus,
     routingStatus,
@@ -588,6 +598,124 @@ function mapClaimToValidationClaim(claim) {
     policyInfo: buildPolicyInfo(claim, coverage),
     timeline,
   });
+}
+
+function buildDocumentValidationChecklist(claim, validation) {
+  const diagnostics = validation?.documentDiagnostics || [];
+
+  return (claim.documents || []).map((document) => {
+    const label = document.label || document.fileName || 'Uploaded document';
+    const fileName = document.fileName || extractDisplayName(document.url) || label;
+    const extension = String(document.extension || extractExtension(fileName)).toLowerCase();
+    const diagnostic = findDocumentDiagnostic(label, diagnostics);
+    const supportedFormat = ['pdf', 'jpg', 'jpeg', 'png'].includes(extension);
+
+    if (diagnostic) {
+      const ocrPassed = diagnostic.ocrSucceeded && diagnostic.confidencePassed && diagnostic.isMatched !== false;
+      return {
+        key: document.key || label,
+        label,
+        fileName,
+        status: ocrPassed ? 'Validated' : 'Issue Found',
+        ocrStatus: diagnostic.ocrSucceeded ? 'OCR checked' : 'OCR failed',
+        message: buildOcrValidationMessage(diagnostic),
+      };
+    }
+
+    return {
+      key: document.key || label,
+      label,
+      fileName,
+      status: supportedFormat ? 'Ready for Review' : 'Issue Found',
+      ocrStatus: null,
+      message: supportedFormat
+        ? 'File uploaded successfully. Format is supported and available for officer review.'
+        : 'File uploaded, but the file type is not one of the preferred formats: PDF, JPG, JPEG, or PNG.',
+    };
+  });
+}
+
+function findDocumentDiagnostic(label, diagnostics) {
+  const normalizedLabel = normalizeDocumentName(label);
+
+  return diagnostics.find((diagnostic) => {
+    const normalizedDiagnosticName = normalizeDocumentName(diagnostic.documentName);
+    return (
+      normalizedLabel === normalizedDiagnosticName ||
+      normalizedLabel.includes(normalizedDiagnosticName) ||
+      normalizedDiagnosticName.includes(normalizedLabel) ||
+      isGroupedOcrDocumentMatch(normalizedLabel, normalizedDiagnosticName)
+    );
+  });
+}
+
+function isGroupedOcrDocumentMatch(label, diagnosticName) {
+  return (
+    (label.includes('identity') && diagnosticName.includes('identity')) ||
+    (label.includes('driving license') && diagnosticName.includes('driving license')) ||
+    (label.includes('vehicle ownership') && diagnosticName.includes('vehicle ownership')) ||
+    (label.includes('police report') && diagnosticName.includes('police report'))
+  );
+}
+
+function buildOcrValidationMessage(diagnostic) {
+  if (diagnostic.errorMessage) {
+    return diagnostic.errorMessage;
+  }
+
+  if (diagnostic.matchMessage) {
+    return diagnostic.matchMessage;
+  }
+
+  if (diagnostic.extractedName || diagnostic.extractedVehicleNumber) {
+    return [
+      diagnostic.extractedName ? `Name extracted: ${diagnostic.extractedName}` : null,
+      diagnostic.extractedVehicleNumber ? `Vehicle extracted: ${diagnostic.extractedVehicleNumber}` : null,
+    ].filter(Boolean).join(' | ');
+  }
+
+  return diagnostic.ocrSucceeded
+    ? 'OCR check completed for this document.'
+    : 'OCR was attempted but did not complete successfully.';
+}
+
+function getDocumentValidationColor(status) {
+  switch (status) {
+    case 'Validated':
+      return 'green';
+    case 'Ready for Review':
+      return 'blue';
+    case 'OCR checked':
+      return 'purple';
+    case 'OCR failed':
+    case 'Issue Found':
+      return 'orange';
+    default:
+      return 'default';
+  }
+}
+
+function normalizeDocumentName(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/document|file/g, '')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+function extractDisplayName(url) {
+  if (!url) {
+    return '';
+  }
+
+  const cleanUrl = String(url).split('?')[0];
+  const segments = cleanUrl.split('/');
+  return segments[segments.length - 1] || cleanUrl;
+}
+
+function extractExtension(fileName) {
+  const segments = String(fileName || '').split('.');
+  return segments.length > 1 ? segments[segments.length - 1] : '';
 }
 
 function resolveAiAssessment(claim, validation) {

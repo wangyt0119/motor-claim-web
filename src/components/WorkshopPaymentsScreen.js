@@ -127,16 +127,10 @@ function WorkshopPaymentsScreen({ scope = 'officer', claims = [] }) {
   return (
     <div className="portal-dashboard-stack">
       <div
-        className="portal-dashboard-hero"
-        style={{
-          background:
-            scope === 'workshop'
-              ? 'linear-gradient(135deg, #ff8a00 0%, #ff5fa2 48%, #5b8def 100%)'
-              : 'linear-gradient(135deg, #0f172a 0%, #0ea5e9 48%, #2563eb 100%)',
-        }}
+        className={`portal-dashboard-hero${scope === 'workshop' ? ' portal-dashboard-hero-workshop' : ' portal-dashboard-theme-soft'}`}
       >
         <div className="portal-dashboard-hero-content">
-          <span className="portal-dashboard-kicker">
+          <span className={`portal-dashboard-kicker${scope === 'workshop' ? ' portal-dashboard-kicker-workshop' : ' portal-dashboard-kicker-soft'}`}>
             {scope === 'workshop' ? 'Workshop Payouts' : 'Officer Monitoring'}
           </span>
           <Title level={2} className="portal-dashboard-title">
@@ -148,15 +142,15 @@ function WorkshopPaymentsScreen({ scope = 'officer', claims = [] }) {
               : 'Review actual workshop payment records created by approved repair estimates.'}
           </Text>
           <div className="portal-dashboard-chip-row">
-            <div className="portal-dashboard-chip">
+            <div className={`portal-dashboard-chip${scope === 'workshop' ? ' portal-dashboard-chip-workshop' : ' portal-dashboard-chip-soft'}`}>
               <span className="portal-dashboard-chip-label">Payments</span>
               <span className="portal-dashboard-chip-value">{enrichedPayments.length}</span>
             </div>
-            <div className="portal-dashboard-chip">
+            <div className={`portal-dashboard-chip${scope === 'workshop' ? ' portal-dashboard-chip-workshop' : ' portal-dashboard-chip-soft'}`}>
               <span className="portal-dashboard-chip-label">Paid</span>
               <span className="portal-dashboard-chip-value">{paidCount}</span>
             </div>
-            <div className="portal-dashboard-chip">
+            <div className={`portal-dashboard-chip${scope === 'workshop' ? ' portal-dashboard-chip-workshop' : ' portal-dashboard-chip-soft'}`}>
               <span className="portal-dashboard-chip-label">Amount</span>
               <span className="portal-dashboard-chip-value">RM {totalAmount.toFixed(2)}</span>
             </div>
@@ -166,22 +160,22 @@ function WorkshopPaymentsScreen({ scope = 'officer', claims = [] }) {
 
       <div className="portal-dashboard-grid">
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${scope === 'workshop' ? ' portal-dashboard-stat-workshop' : ''}`}>
             <Statistic title="Total Payments" value={enrichedPayments.length} prefix={<DollarOutlined />} />
           </Card>
         </div>
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${scope === 'workshop' ? ' portal-dashboard-stat-workshop' : ''}`}>
             <Statistic title="Paid" value={paidCount} prefix={<CheckCircleOutlined />} />
           </Card>
         </div>
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${scope === 'workshop' ? ' portal-dashboard-stat-workshop' : ''}`}>
             <Statistic title="Pending" value={pendingCount} prefix={<ClockCircleOutlined />} />
           </Card>
         </div>
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${scope === 'workshop' ? ' portal-dashboard-stat-workshop' : ''}`}>
             <Statistic title="Failed" value={failedCount} prefix={<WarningOutlined />} />
           </Card>
         </div>
@@ -243,8 +237,6 @@ function WorkshopPaymentsScreen({ scope = 'officer', claims = [] }) {
                         Claim {shortId(payment.claimId)}
                       </Text>
                       <Tag color={getStatusColor(payment.status)}>{payment.status || 'Unknown'}</Tag>
-                      <Tag>{payment.approvalSource || 'Approval source unavailable'}</Tag>
-                      <Tag>{payment.provider || 'Provider unavailable'}</Tag>
                     </Space>
                     <Text type="secondary">
                       {scope === 'workshop'

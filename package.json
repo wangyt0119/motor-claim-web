@@ -18,10 +18,17 @@
     "web-vitals": "^2.1.4"
   },
   "scripts": {
-    "start": "react-scripts start",
-    "start:officer": "cross-env REACT_APP_ENTRY=officer react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "start": "node scripts/react-app-runner.js start main",
+    "start:customer": "node scripts/react-app-runner.js start customer",
+    "start:admin": "node scripts/react-app-runner.js start admin",
+    "start:officer": "node scripts/react-app-runner.js start officer",
+    "start:panel-workshop": "node scripts/react-app-runner.js start panel-workshop",
+    "build": "node scripts/react-app-runner.js build main",
+    "build:customer": "node scripts/react-app-runner.js build customer",
+    "build:admin": "node scripts/react-app-runner.js build admin",
+    "build:officer": "node scripts/react-app-runner.js build officer",
+    "build:panel-workshop": "node scripts/react-app-runner.js build panel-workshop",
+    "test": "node scripts/react-app-runner.js test main",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {

@@ -31,7 +31,7 @@ import { getAllWorkshopPayments, getMyWorkshopPayments } from '../services/works
 
 const { Title, Text } = Typography;
 
-function NotificationTimelineScreen({ scope = 'customer', claims = [], currentUser = null }) {
+function NotificationTimelineScreen({ scope = 'customer', claims = [], currentUser = null, theme = 'default' }) {
   const [payments, setPayments] = useState([]);
   const [loadingPayments, setLoadingPayments] = useState(scope === 'officer' || scope === 'workshop');
   const [searchText, setSearchText] = useState('');
@@ -132,45 +132,43 @@ function NotificationTimelineScreen({ scope = 'customer', claims = [], currentUs
   }, [entries]);
 
   const config = getScopeConfig(scope);
+  const isSoftTheme = theme === 'workshop' || theme === 'customer' || scope === 'officer';
 
   return (
     <div className="portal-dashboard-stack">
-      <Card
-        className="portal-dashboard-card"
-        style={{ borderRadius: 20, border: '1px solid #e5e7eb', background: '#ffffff' }}
-      >
-        <Space direction="vertical" size={8} style={{ width: '100%' }}>
-          <Text type="secondary" style={{ textTransform: 'uppercase', letterSpacing: 1, fontSize: 12 }}>
+      <div className={`portal-dashboard-hero${theme === 'workshop' ? ' portal-dashboard-hero-workshop' : ' portal-dashboard-theme-soft'}`}>
+        <div className="portal-dashboard-hero-content">
+          <span className={`portal-dashboard-kicker${theme === 'workshop' ? ' portal-dashboard-kicker-workshop' : ' portal-dashboard-kicker-soft'}`}>
             {config.kicker}
-          </Text>
-          <Title level={2} style={{ margin: 0 }}>
+          </span>
+          <Title level={2} className="portal-dashboard-title">
             {config.title}
           </Title>
-          <Text type="secondary">{config.description}</Text>
+          <Text className="portal-dashboard-description">{config.description}</Text>
           <Text type="secondary" style={{ fontSize: 13 }}>
             Built from real backend claim, workshop, and payment records.
           </Text>
-        </Space>
-      </Card>
+        </div>
+      </div>
 
       <div className="portal-dashboard-grid">
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${isSoftTheme ? ' portal-dashboard-stat-soft' : ''}`}>
             <Statistic title="All Events" value={summary.total} prefix={<NotificationOutlined />} />
           </Card>
         </div>
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${isSoftTheme ? ' portal-dashboard-stat-soft' : ''}`}>
             <Statistic title="Claims" value={summary.customerRelated} prefix={<BellOutlined />} />
           </Card>
         </div>
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${isSoftTheme ? ' portal-dashboard-stat-soft' : ''}`}>
             <Statistic title="Workshop" value={summary.workshopRelated} prefix={<ToolOutlined />} />
           </Card>
         </div>
         <div className="portal-dashboard-span-3">
-          <Card className="portal-dashboard-stat">
+          <Card className={`portal-dashboard-stat${isSoftTheme ? ' portal-dashboard-stat-soft' : ''}`}>
             <Statistic title="Payments" value={summary.paymentRelated} prefix={<DollarOutlined />} />
           </Card>
         </div>
@@ -256,8 +254,17 @@ function NotificationTimelineScreen({ scope = 'customer', claims = [], currentUs
                 title: 'Status',
                 dataIndex: 'status',
                 key: 'status',
-                width: 120,
-                render: (value) => <Tag>{value}</Tag>,
+                width: 220,
+                render: (value, entry) => (
+                  <Space direction="vertical" size={2}>
+                    <Tag color={getAuditStatusColor(value)}>{value}</Tag>
+                    {entry.deliveryMessage ? (
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {entry.deliveryMessage}
+                      </Text>
+                    ) : null}
+                  </Space>
+                ),
               },
             ]}
           />
@@ -274,7 +281,7 @@ function NotificationTimelineScreen({ scope = 'customer', claims = [], currentUs
                   <Space direction="vertical" size={6} style={{ width: '100%' }}>
                     <Space wrap>
                       <Tag color={getTypeColor(entry.type)}>{entry.type}</Tag>
-                      <Tag>{entry.status}</Tag>
+                      {entry.status ? <Tag color={getAuditStatusColor(entry.status)}>{entry.status}</Tag> : null}
                     </Space>
                     <Text strong style={{ fontSize: 16 }}>{entry.subject}</Text>
                     <Text>{entry.preview}</Text>
@@ -308,6 +315,8 @@ function buildNotificationEntries({ scope, claims, payments, currentUser }) {
         subject: `Claim ${claim.id} submitted`,
         preview: `${claim.type || 'Motor claim'} was submitted and is now under review.`,
         details: claim.incidentDescription || 'No incident description provided.',
+        status: getEmailAuditStatus(claim),
+        deliveryMessage: claim.emailNotificationMessage,
       });
 
       addEntry(entries, {
@@ -321,6 +330,8 @@ function buildNotificationEntries({ scope, claims, payments, currentUser }) {
           ? `Requested items: ${claim.requestedItems.join(', ')}.`
           : 'The claim was moved to pending customer action.',
         details: claim.officerDecisionNote || 'No additional note provided.',
+        status: getEmailAuditStatus(claim),
+        deliveryMessage: claim.emailNotificationMessage,
       });
 
       addEntry(entries, {
@@ -332,6 +343,8 @@ function buildNotificationEntries({ scope, claims, payments, currentUser }) {
         subject: `Customer response submitted for ${claim.id}`,
         preview: claim.customerResponseNote || 'Customer uploaded or submitted a response.',
         details: claim.customerResponseNote || 'No response note provided.',
+        status: getEmailAuditStatus(claim),
+        deliveryMessage: claim.emailNotificationMessage,
       });
 
       if (claim.decidedAt && ['Approved', 'Rejected'].includes(claim.status)) {
@@ -344,6 +357,8 @@ function buildNotificationEntries({ scope, claims, payments, currentUser }) {
           subject: `Claim ${claim.id} ${claim.status.toLowerCase()}`,
           preview: claim.officerDecisionNote || `Claim was ${formatDecisionStatus(claim.status, scope)}.`,
           details: claim.officerDecisionNote || `The claim decision recorded was ${claim.status}.`,
+          status: getEmailAuditStatus(claim),
+          deliveryMessage: claim.emailNotificationMessage,
         });
       }
 
@@ -442,9 +457,32 @@ function addEntry(entries, entry) {
   }
 
   entries.push({
-    status: 'Recorded',
+    status: entry.status || 'Delivered',
     ...entry,
   });
+}
+
+function getEmailAuditStatus(claim) {
+  if (claim?.emailNotificationSent === true) {
+    return 'Delivered';
+  }
+
+  if (claim?.emailNotificationSent === false) {
+    return 'Failed';
+  }
+
+  return 'Delivered';
+}
+
+function getAuditStatusColor(status) {
+  switch (status) {
+    case 'Delivered':
+      return 'success';
+    case 'Failed':
+      return 'error';
+    default:
+      return 'default';
+  }
 }
 
 function getScopeConfig(scope) {

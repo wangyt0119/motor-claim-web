@@ -13,7 +13,6 @@ import {
   DollarOutlined,
   LogoutOutlined,
   UserOutlined,
-  BellOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
@@ -24,7 +23,7 @@ import { getAllCoverages } from '../services/coverageService';
 
 // Import all required components
 import ManualReviewQueue from './ManualReviewQueue';
-import SuspiciousClaimsReview from './SuspiciousClaimsReview';
+import SuspiciousClaimsReviewScreen from './SuspiciousClaimsReviewScreen';
 import ReportsScreen from './ReportsScreen';
 import TrackValidationProcess from './TrackValidationProcess';
 import OfficerNotificationAuditScreen from './OfficerNotificationAuditScreen';
@@ -33,7 +32,7 @@ import AllClaimsOfficerScreen from './AllClaimsOfficerScreen';
 import WorkshopSubmissionsOfficerScreen from './WorkshopSubmissionsOfficerScreen';
 import { getPortalBasePath, getPortalPath, PORTAL_KEYS } from '../config/portalRoutes';
 
-const { Sider, Content, Header } = Layout;
+const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
 
 function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
@@ -90,12 +89,12 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
   );
   const approvedClaims = useMemo(() => claims.filter((claim) => claim.status === 'Approved'), [claims]);
   const suspiciousClaims = useMemo(() => {
-    return claims.filter((claim) => {
-      const reasons = claim.validationResult?.reasons || [];
-      return reasons.some((reason) =>
-        /ocr failed|confidence is too low|missing|does not match/i.test(reason)
-      );
-    });
+    return claims.filter((claim) =>
+      claim.isFlaggedForManualReview &&
+      /another submitted claim within the last|last 30 days|same coverage/i.test(
+        claim.manualReviewFlagReason || ''
+      )
+    );
   }, [claims]);
   const workshopSubmissions = useMemo(
     () => claims.filter((claim) => claim.workshopRepairEstimate),
@@ -119,44 +118,36 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
   );
 
   const buildDashboardView = () => (
-    <div style={{ padding: 24, background: 'linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%)', minHeight: '100%' }}>
-      <div
-        style={{
-          borderRadius: 28,
-          padding: 28,
-          background: 'linear-gradient(135deg, #111827 0%, #1d4ed8 52%, #0f766e 100%)',
-          color: '#fff',
-          boxShadow: '0 24px 56px rgba(15, 23, 42, 0.18)',
-        }}
-      >
+    <div className="portal-dashboard-stack">
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft">
         <Row gutter={[24, 24]} align="middle">
           <Col xs={24} lg={15}>
-            <Text style={{ color: 'rgba(255,255,255,0.72)', letterSpacing: 1.2, textTransform: 'uppercase', fontSize: 12 }}>
+            <Text className="portal-dashboard-kicker portal-dashboard-kicker-soft" style={{ marginBottom: 12 }}>
               Claims Command Center
             </Text>
-            <Title level={2} style={{ color: '#fff', margin: '10px 0 6px' }}>
+            <Title level={2} className="portal-dashboard-title">
               Welcome back, {currentOfficer?.fullName || currentOfficer?.FullName || 'Officer'}
             </Title>
-            <Text style={{ color: 'rgba(255,255,255,0.82)', fontSize: 16 }}>
+            <Text className="portal-dashboard-description">
               Keep track of reviews, approvals, suspicious cases, and workshop activity in one live officer dashboard.
             </Text>
             <Row gutter={[12, 12]} style={{ marginTop: 22 }}>
               <Col xs={12} sm={8}>
-                <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 16 }}>
-                  <Text style={{ color: 'rgba(255,255,255,0.72)', display: 'block', marginBottom: 4 }}>Pending Queue</Text>
-                  <Title level={3} style={{ color: '#fff', margin: 0 }}>{pendingClaims.length}</Title>
+                <div className="portal-dashboard-chip portal-dashboard-chip-soft" style={{ borderRadius: 18, padding: 16 }}>
+                  <Text style={{ color: '#7c5a46', display: 'block', marginBottom: 4 }}>Pending Queue</Text>
+                  <Title level={3} style={{ color: '#111827', margin: 0 }}>{pendingClaims.length}</Title>
                 </div>
               </Col>
               <Col xs={12} sm={8}>
-                <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 16 }}>
-                  <Text style={{ color: 'rgba(255,255,255,0.72)', display: 'block', marginBottom: 4 }}>Approved Claims</Text>
-                  <Title level={3} style={{ color: '#fff', margin: 0 }}>{approvedClaims.length}</Title>
+                <div className="portal-dashboard-chip portal-dashboard-chip-soft" style={{ borderRadius: 18, padding: 16 }}>
+                  <Text style={{ color: '#7c5a46', display: 'block', marginBottom: 4 }}>Approved Claims</Text>
+                  <Title level={3} style={{ color: '#111827', margin: 0 }}>{approvedClaims.length}</Title>
                 </div>
               </Col>
               <Col xs={12} sm={8}>
-                <div style={{ background: 'rgba(255,255,255,0.12)', borderRadius: 18, padding: 16 }}>
-                  <Text style={{ color: 'rgba(255,255,255,0.72)', display: 'block', marginBottom: 4 }}>Approved Value</Text>
-                  <Title level={3} style={{ color: '#fff', margin: 0 }}>
+                <div className="portal-dashboard-chip portal-dashboard-chip-soft" style={{ borderRadius: 18, padding: 16 }}>
+                  <Text style={{ color: '#7c5a46', display: 'block', marginBottom: 4 }}>Approved Value</Text>
+                  <Title level={3} style={{ color: '#111827', margin: 0 }}>
                     RM {approvedAmount.toLocaleString('en-MY', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
                   </Title>
                 </div>
@@ -166,7 +157,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
           <Col xs={24} lg={9}>
             <Card
               bordered={false}
-              style={{ borderRadius: 24, background: 'rgba(255,255,255,0.96)' }}
+              style={{ borderRadius: 24, background: '#fffaf5', border: '1px solid #f3d2b7' }}
               bodyStyle={{ padding: 22 }}
             >
               <Text strong style={{ fontSize: 16, color: '#0f172a' }}>Today’s Focus</Text>
@@ -176,7 +167,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
                   { label: 'Suspicious signals', value: suspiciousClaims.length, tone: '#ef4444' },
                   { label: 'Workshop submissions', value: workshopSubmissions.length, tone: '#16a34a' },
                 ].map((item) => (
-                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 16, background: `${item.tone}12`, border: `1px solid ${item.tone}22` }}>
+                  <div key={item.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 14px', borderRadius: 16, background: '#fff7ed', border: '1px solid #f3d2b7' }}>
                     <Text style={{ color: '#334155' }}>{item.label}</Text>
                     <Text strong style={{ color: item.tone, fontSize: 18 }}>{item.value}</Text>
                   </div>
@@ -187,15 +178,15 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
         </Row>
       </div>
 
-      <Row gutter={[20, 20]} style={{ marginTop: 24 }}>
+      <Row gutter={[20, 20]}>
         <Col xs={24} sm={12} xl={6}>
           {buildDashboardMetricCard({
             title: 'Claims Pending Review',
             value: pendingClaims.length,
             subtitle: 'Customer and manual review queues',
             icon: <ClockCircleOutlined />,
-            color: '#f97316',
-            background: 'linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%)',
+            color: '#ea580c',
+            background: '#fff7ed',
           })}
         </Col>
         <Col xs={24} sm={12} xl={6}>
@@ -204,8 +195,8 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
             value: suspiciousClaims.length,
             subtitle: 'Potential fraud or OCR mismatch',
             icon: <SecurityScanOutlined />,
-            color: '#ef4444',
-            background: 'linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%)',
+            color: '#ea580c',
+            background: '#fff7ed',
           })}
         </Col>
         <Col xs={24} sm={12} xl={6}>
@@ -214,8 +205,8 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
             value: workshopSubmissions.length,
             subtitle: 'Repair estimates submitted',
             icon: <ToolOutlined />,
-            color: '#16a34a',
-            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+            color: '#ea580c',
+            background: '#fff7ed',
           })}
         </Col>
         <Col xs={24} sm={12} xl={6}>
@@ -224,8 +215,8 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
             value: totalCoverages,
             subtitle: 'Coverages linked in the backend',
             icon: <DashboardOutlined />,
-            color: '#2563eb',
-            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            color: '#ea580c',
+            background: '#fff7ed',
           })}
         </Col>
       </Row>
@@ -306,7 +297,14 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       case 2:
         return <ManualReviewQueue claims={claims} loading={loadingClaims} onClaimsChanged={refreshClaims} />;
       case 3:
-        return <SuspiciousClaimsReview />;
+        return (
+          <SuspiciousClaimsReviewScreen
+            claims={claims}
+            loading={loadingClaims}
+            onRefresh={refreshClaims}
+            onClaimsChanged={refreshClaims}
+          />
+        );
       case 4:
         return (
           <WorkshopSubmissionsOfficerScreen
@@ -463,25 +461,7 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
       </Sider>
       
       <Layout style={{ marginLeft: 280 }}>
-        <Header className="portal-dashboard-header" style={{ 
-          padding: '0 24px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'flex-end',
-          boxShadow: '0 1px 4px rgba(0, 0, 0, 0.05)',
-          zIndex: 1,
-          height: 64
-        }}>
-          <Badge count={3} style={{ backgroundColor: '#FF6600' }}>
-            <Button 
-              icon={<BellOutlined />} 
-              style={{ border: 'none', background: 'transparent' }}
-              size="large"
-            />
-          </Badge>
-        </Header>
-        
-        <Content className="portal-dashboard-page" style={{ margin: '24px', minHeight: 280 }}>
+        <Content className="portal-dashboard-page" style={{ minHeight: 280 }}>
           {renderContent()}
         </Content>
       </Layout>
@@ -492,12 +472,12 @@ function ClaimOfficerDashboard({ currentOfficer, onSignOut }) {
 function buildDashboardMetricCard({ title, value, subtitle, icon, color, background }) {
   return (
     <Card
-      className="portal-dashboard-stat"
+      className="portal-dashboard-stat portal-dashboard-stat-soft"
       style={{
         borderRadius: 24,
-        border: '1px solid #e2e8f0',
+        border: '1px solid #f3d2b7',
         background,
-        boxShadow: '0 12px 28px rgba(15, 23, 42, 0.06)',
+        boxShadow: '0 14px 30px rgba(234, 88, 12, 0.07)',
       }}
       bodyStyle={{ padding: 20 }}
     >
@@ -507,7 +487,7 @@ function buildDashboardMetricCard({ title, value, subtitle, icon, color, backgro
           <Title level={3} style={{ margin: 0, color }}>{value}</Title>
           <Text type="secondary" style={{ fontSize: 12 }}>{subtitle}</Text>
         </div>
-        <div style={{ width: 48, height: 48, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fff', color, boxShadow: '0 10px 22px rgba(255,255,255,0.55)' }}>
+        <div style={{ width: 48, height: 48, borderRadius: 16, display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#fffaf5', color, border: '1px solid #f3d2b7' }}>
           {React.cloneElement(icon, { style: { fontSize: 22 } })}
         </div>
       </div>

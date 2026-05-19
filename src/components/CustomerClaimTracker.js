@@ -7,7 +7,6 @@ import {
   Descriptions,
   Empty,
   Input,
-  List,
   Modal,
   Select,
   Space,
@@ -15,30 +14,37 @@ import {
   Typography,
   Upload,
   message,
+  Row,
+  Col,
 } from 'antd';
 import {
   CalendarOutlined,
+  DollarOutlined,
   EnvironmentOutlined,
   EyeOutlined,
   UploadOutlined,
   ToolOutlined,
+  SearchOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
 import { submitCustomerClaimResponse } from '../services/claimService';
 import {
   createOrUpdateWorkshopAppointment,
+  getMyWorkshopPaymentByEstimate,
   getPanelWorkshopStates,
   getPanelWorkshopsByState,
 } from '../services/workshopService';
 import { uploadFileToCloudinary } from '../services/cloudinaryService';
-import WorkshopRepairEstimateCard from './WorkshopRepairEstimateCard';
+import ClaimDetailsModal from './ClaimDetailsModal';
 
 const { Title, Text } = Typography;
 const WORKSHOP_PERIODS = ['AM', 'PM'];
 const WORKSHOP_SLOT_MINUTES = 30;
 const WORKSHOP_TIME_SLOTS = buildWorkshopTimeSlots();
 
-function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
+function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) {
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [selectedClaim, setSelectedClaim] = useState(null);
   const [responseModalOpen, setResponseModalOpen] = useState(false);
   const [bookingModalOpen, setBookingModalOpen] = useState(false);
@@ -56,16 +62,90 @@ function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(undefined);
   const [bookingNote, setBookingNote] = useState('');
   const [submittingBooking, setSubmittingBooking] = useState(false);
+  const [claimPayments, setClaimPayments] = useState({});
 
   const periodTimeSlots = useMemo(
     () => WORKSHOP_TIME_SLOTS.filter((slot) => slot.period === selectedPeriod),
     [selectedPeriod]
   );
 
-  const sortedClaims = useMemo(
-    () => [...claims].sort((left, right) => new Date(right.date).getTime() - new Date(left.date).getTime()),
+  const statusOptions = useMemo(
+    () => ['All', ...new Set(claims.map((claim) => claim.status).filter(Boolean))],
     [claims]
   );
+
+  const claimsWithPayments = useMemo(
+    () =>
+      claims.map((claim) => ({
+        ...claim,
+        workshopPayment: claimPayments[claim.id] || claim.workshopPayment || null,
+      })),
+    [claimPayments, claims]
+  );
+
+  const filteredClaims = useMemo(() => {
+    let nextClaims = [...claimsWithPayments];
+
+    if (statusFilter !== 'All') {
+      nextClaims = nextClaims.filter((claim) => claim.status === statusFilter);
+    }
+
+    if (searchQuery.trim()) {
+      const query = searchQuery.trim().toLowerCase();
+      nextClaims = nextClaims.filter((claim) =>
+        [
+          claim.id,
+          claim.type,
+          claim.vehicleRegistration,
+          claim.status,
+          claim.reviewStatus,
+          claim.officerDecisionNote,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      );
+    }
+
+    return nextClaims.sort((left, right) => getClaimSortTime(right) - getClaimSortTime(left));
+  }, [claimsWithPayments, searchQuery, statusFilter]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadCustomerPayments() {
+      const claimsWithEstimates = claims.filter((claim) => claim.workshopRepairEstimate?.estimateId);
+
+      if (!claimsWithEstimates.length) {
+        if (isMounted) {
+          setClaimPayments({});
+        }
+        return;
+      }
+
+      const entries = await Promise.all(
+        claimsWithEstimates.map(async (claim) => {
+          try {
+            const payment = await getMyWorkshopPaymentByEstimate(claim.workshopRepairEstimate.estimateId);
+            return [claim.id, payment];
+          } catch (error) {
+            return [claim.id, null];
+          }
+        })
+      );
+
+      if (isMounted) {
+        setClaimPayments(Object.fromEntries(entries.filter(([, payment]) => payment)));
+      }
+    }
+
+    loadCustomerPayments();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [claims]);
 
   useEffect(() => {
     if (!bookingModalOpen || !selectedState) {
@@ -76,31 +156,72 @@ function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
   }, [bookingModalOpen, selectedState]);
 
   return (
-    <div style={{ padding: 24 }}>
-      <Title level={2}>Active Claims Tracker</Title>
-      <Text type="secondary">Track review progress, respond to officer requests, and book a panel workshop once your claim is approved.</Text>
+    <div className="portal-dashboard-stack">
+      <div className="portal-dashboard-hero portal-dashboard-theme-soft">
+        <div className="portal-dashboard-hero-content">
+          <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Track Claims</span>
+          <Title level={2} className="portal-dashboard-title">Active Claims Tracker</Title>
+          <Text className="portal-dashboard-description">
+            Track review progress, respond to officer requests, and book a panel workshop once your claim is approved.
+          </Text>
+          <div className="portal-dashboard-chip-row">
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">All Claims</span>
+              <span className="portal-dashboard-chip-value">{claimsWithPayments.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Shown</span>
+              <span className="portal-dashboard-chip-value">{filteredClaims.length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Need Response</span>
+              <span className="portal-dashboard-chip-value">{claimsWithPayments.filter((claim) => claim.status === 'Pending Customer Action').length}</span>
+            </div>
+            <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+              <span className="portal-dashboard-chip-label">Workshop Ready</span>
+              <span className="portal-dashboard-chip-value">{claimsWithPayments.filter((claim) => canBookWorkshop(claim)).length}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <Row gutter={[16, 16]}>
+        <Col xs={24} md={16}>
+          <Input
+            allowClear
+            placeholder="Search by claim ID, type, vehicle, status, or officer note"
+            prefix={<SearchOutlined />}
+            value={searchQuery}
+            onChange={(event) => setSearchQuery(event.target.value)}
+          />
+        </Col>
+        <Col xs={24} md={8}>
+          <Select style={{ width: '100%' }} value={statusFilter} onChange={setStatusFilter}>
+            {statusOptions.map((status) => (
+              <Select.Option key={status} value={status}>{status}</Select.Option>
+            ))}
+          </Select>
+        </Col>
+      </Row>
 
       <Alert
         showIcon
         type="info"
-        style={{ marginTop: 16, marginBottom: 24 }}
+        style={{ marginBottom: 24 }}
         message="Customer workflow"
         description="Pending customer action means the officer wants a reupload or rewritten explanation. Approved vehicle claims can proceed to panel workshop booking directly from this page."
       />
 
-      {sortedClaims.length === 0 ? (
-        <Empty description="No active claims found" />
+      {filteredClaims.length === 0 ? (
+        <Empty description="No claims found matching your criteria" />
       ) : (
-        sortedClaims.map((claim) => (
+        filteredClaims.map((claim) => (
           <Card key={claim.id} style={{ marginBottom: 16, borderRadius: 16 }}>
             <Space direction="vertical" size={12} style={{ width: '100%' }}>
               <Space wrap>
                 <Text strong>{claim.id}</Text>
                 <Tag color={getStatusColor(claim.status)}>{claim.status}</Tag>
-                <Tag color={claim.isStpApproved ? 'green' : 'orange'}>
-                  {claim.isStpApproved ? 'Approved' : 'Under Review'}
-                </Tag>
-                {claim.reviewStatus ? <Tag color="blue">{formatReviewStatus(claim.reviewStatus)}</Tag> : null}
+                {claim.workshopAppointment ? <Tag color="cyan">Workshop booked</Tag> : null}
               </Space>
 
               <Descriptions bordered size="small" column={1}>
@@ -128,14 +249,26 @@ function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
                 />
               ) : null}
 
-              {claim.workshopRepairEstimate ? (
-                <Alert
-                  type={claim.workshopRepairEstimate.isStpApproved || claim.workshopRepairEstimate.status === 'Approved' ? 'success' : 'info'}
-                  showIcon
-                  message={`Workshop submission: ${formatEstimateStatus(claim.workshopRepairEstimate.status)}`}
-                  description={`Total amount: RM ${claim.workshopRepairEstimate.totalAmount.toFixed(2)} | Review mode: ${formatEstimateStatus(claim.workshopRepairEstimate.reviewMode)}`}
-                />
-              ) : null}
+              <Card size="small" style={{ borderRadius: 12, background: '#f8fafc' }}>
+                <Space direction="vertical" size={8} style={{ width: '100%' }}>
+                  <Space wrap>
+                    <DollarOutlined style={{ color: getPaymentProgress(claim).color }} />
+                    <Text strong>Payment Progress</Text>
+                    <Tag color={getPaymentProgress(claim).tagColor}>{getPaymentProgress(claim).label}</Tag>
+                  </Space>
+                  <Text type="secondary">{getPaymentProgress(claim).description}</Text>
+                  {claim.workshopPayment?.paidAt || claim.paymentDate || claim.workshopPayment?.providerReference || claim.paymentReference ? (
+                    <Space wrap size={[16, 6]}>
+                      {claim.workshopPayment?.paidAt || claim.paymentDate ? (
+                        <Text type="secondary">Paid at: {moment(claim.workshopPayment?.paidAt || claim.paymentDate).format('DD MMM YYYY')}</Text>
+                      ) : null}
+                      {claim.workshopPayment?.providerReference || claim.paymentReference ? (
+                        <Text type="secondary">Reference: {claim.workshopPayment?.providerReference || claim.paymentReference}</Text>
+                      ) : null}
+                    </Space>
+                  ) : null}
+                </Space>
+              </Card>
 
               <Space wrap>
                 <Button icon={<EyeOutlined />} onClick={() => setSelectedClaim(claim)}>
@@ -162,80 +295,12 @@ function CustomerClaimTracker({ claims = [], onClaimsChanged }) {
         ))
       )}
 
-      <Modal
+      <ClaimDetailsModal
+        claim={selectedClaim}
+        coverages={coverages}
         open={Boolean(selectedClaim) && !responseModalOpen && !bookingModalOpen}
-        onCancel={() => setSelectedClaim(null)}
-        footer={null}
-        width={780}
-        title={selectedClaim ? `Claim ${selectedClaim.id}` : 'Claim details'}
-      >
-        {selectedClaim ? (
-          <Space direction="vertical" size={16} style={{ width: '100%' }}>
-            <Descriptions bordered column={1} size="small">
-              <Descriptions.Item label="Status">{selectedClaim.status}</Descriptions.Item>
-              <Descriptions.Item label="Review status">{formatReviewStatus(selectedClaim.reviewStatus)}</Descriptions.Item>
-              <Descriptions.Item label="Type">{selectedClaim.type}</Descriptions.Item>
-              <Descriptions.Item label="Description">{selectedClaim.incidentDescription || 'No description'}</Descriptions.Item>
-              <Descriptions.Item label="Officer note">{selectedClaim.officerDecisionNote || 'No officer note provided'}</Descriptions.Item>
-            </Descriptions>
-
-            {selectedClaim.requestedItems?.length ? (
-              <Card title="Requested by officer">
-                <List dataSource={selectedClaim.requestedItems} renderItem={(item) => <List.Item>{item.label}</List.Item>} />
-              </Card>
-            ) : null}
-
-            {(selectedClaim.customerResponseNote || selectedClaim.responseDocuments?.length) ? (
-              <Card title="Your latest response">
-                <Descriptions bordered size="small" column={1}>
-                  <Descriptions.Item label="Submitted at">
-                    {selectedClaim.respondedAt ? moment(selectedClaim.respondedAt).format('DD MMM YYYY, hh:mm A') : 'Not available'}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Note">
-                    {selectedClaim.customerResponseNote || 'No note provided'}
-                  </Descriptions.Item>
-                </Descriptions>
-                {selectedClaim.responseDocuments?.length ? (
-                  <List
-                    style={{ marginTop: 16 }}
-                    dataSource={selectedClaim.responseDocuments}
-                    renderItem={(url, index) => (
-                      <List.Item actions={[<Button key="view" onClick={() => window.open(url, '_blank', 'noopener,noreferrer')}>View</Button>]}> 
-                        <List.Item.Meta title={`Response document ${index + 1}`} description={url} />
-                      </List.Item>
-                    )}
-                  />
-                ) : null}
-              </Card>
-            ) : null}
-
-            {selectedClaim.workshopAppointment ? (
-              <Card title="Panel workshop appointment">
-                <Descriptions bordered size="small" column={1}>
-                  <Descriptions.Item label="Workshop">{selectedClaim.workshopAppointment.workshopName}</Descriptions.Item>
-                  <Descriptions.Item label="State">{selectedClaim.workshopAppointment.workshopState}</Descriptions.Item>
-                  <Descriptions.Item label="Address">{selectedClaim.workshopAppointment.workshopAddress}</Descriptions.Item>
-                  <Descriptions.Item label="Preferred date">
-                    {moment(selectedClaim.workshopAppointment.preferredDate).format('DD MMM YYYY')}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Time slot">
-                    {formatTimeRange(selectedClaim.workshopAppointment.timeSlotStart, selectedClaim.workshopAppointment.timeSlotEnd)}
-                  </Descriptions.Item>
-                  <Descriptions.Item label="Status">{selectedClaim.workshopAppointment.status || 'Pending'}</Descriptions.Item>
-                  <Descriptions.Item label="Notes">{selectedClaim.workshopAppointment.notes || 'No notes'}</Descriptions.Item>
-                </Descriptions>
-              </Card>
-            ) : null}
-
-            {selectedClaim.workshopRepairEstimate ? (
-              <WorkshopRepairEstimateCard
-                estimate={selectedClaim.workshopRepairEstimate}
-                emptyDescription="No workshop submission has been sent yet."
-              />
-            ) : null}
-          </Space>
-        ) : null}
-      </Modal>
+        onClose={() => setSelectedClaim(null)}
+      />
 
       <Modal
         open={responseModalOpen}
@@ -547,6 +612,88 @@ function getStatusColor(status) {
   }
 }
 
+function getClaimSortTime(claim) {
+  const value = claim.createdAt || claim.date || claim.incidentDate || 0;
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
+}
+
+function getPaymentProgress(claim) {
+  const payment = claim.workshopPayment || null;
+  const paymentStatus = String(payment?.status || claim.paymentStatus || '').toLowerCase();
+  const estimateStatus = String(claim.workshopRepairEstimate?.status || '').toLowerCase();
+
+  if (paymentStatus === 'paid') {
+    return {
+      label: 'Paid',
+      tagColor: 'green',
+      color: '#16a34a',
+      description: 'Payment has been completed.',
+    };
+  }
+
+  if (['failed', 'rejected'].includes(paymentStatus)) {
+    return {
+      label: 'Payment Failed',
+      tagColor: 'red',
+      color: '#dc2626',
+      description: 'Payment was not successful. Please contact support for assistance.',
+    };
+  }
+
+  if (['pending', 'processing', 'onhold', 'on hold'].includes(paymentStatus)) {
+    return {
+      label: 'Processing',
+      tagColor: 'blue',
+      color: '#2563eb',
+      description: 'Payment is being processed by the finance or workshop payout flow.',
+    };
+  }
+
+  if ((claim.workshopRepairEstimate?.isStpApproved || estimateStatus === 'approved') && claim.status === 'Approved') {
+    return {
+      label: 'Awaiting Payout',
+      tagColor: 'cyan',
+      color: '#0891b2',
+      description: 'The workshop quotation has been approved. Payment will be prepared next.',
+    };
+  }
+
+  if (claim.workshopRepairEstimate) {
+    return {
+      label: 'Quotation Review',
+      tagColor: 'orange',
+      color: '#ea580c',
+      description: 'The workshop quotation has been submitted and is waiting for approval before payment.',
+    };
+  }
+
+  if (canBookWorkshop(claim)) {
+    return {
+      label: 'Workshop Required',
+      tagColor: 'gold',
+      color: '#ca8a04',
+      description: 'Choose a panel workshop first. Payment progress starts after workshop quotation approval.',
+    };
+  }
+
+  if (String(claim.status || '').toLowerCase() === 'rejected') {
+    return {
+      label: 'Not Payable',
+      tagColor: 'red',
+      color: '#dc2626',
+      description: 'This claim was rejected, so no payment will be processed.',
+    };
+  }
+
+  return {
+    label: 'Not Started',
+    tagColor: 'default',
+    color: '#64748b',
+    description: 'Payment progress will appear after claim approval and workshop processing.',
+  };
+}
+
 function getNextAction(claim) {
   switch ((claim.status || '').toLowerCase()) {
     case 'pending customer action':
@@ -575,16 +722,6 @@ function canBookWorkshop(claim) {
   // Allow booking only for approved claim types, and only when no workshop quotation has been sent.
   // If a quotation exists, the customer should no longer update the workshop booking here.
   return isApprovedClaim && !hasSubmittedEstimate;
-}
-
-function formatReviewStatus(status) {
-  if (!status) {
-    return 'Not available';
-  }
-
-  return String(status)
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 function formatTimeRange(start, end) {
@@ -645,16 +782,6 @@ function renderWorkshopOption(workshop) {
       {Array.isArray(workshop.phone) && workshop.phone.length ? <Text type="secondary">Phone: {workshop.phone.join(', ')}</Text> : null}
     </Space>
   );
-}
-
-function formatEstimateStatus(value) {
-  if (!value) {
-    return 'No estimate status';
-  }
-
-  return String(value)
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
 export default CustomerClaimTracker;

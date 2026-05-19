@@ -60,7 +60,7 @@ function AdminAuthScreen({ onAuthenticated }) {
           </Paragraph>
         </div>
 
-        <Card className="auth-card" bordered={false}>
+        <Card className="auth-card" variant="borderless">
           <Form
             form={form}
             layout="vertical"

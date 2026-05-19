@@ -5,7 +5,11 @@ import moment from 'moment';
 
 const { Text } = Typography;
 
-function WorkshopRepairEstimateCard({ estimate, emptyDescription = 'No workshop repair estimate submitted yet.' }) {
+function WorkshopRepairEstimateCard({
+  estimate,
+  emptyDescription = 'No workshop repair estimate submitted yet.',
+  customerView = false,
+}) {
   if (!estimate) {
     return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={emptyDescription} />;
   }
@@ -22,9 +26,11 @@ function WorkshopRepairEstimateCard({ estimate, emptyDescription = 'No workshop 
     >
       <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
         <Tag color={getEstimateStatusColor(estimate.status)}>{formatEstimateStatus(estimate.status)}</Tag>
-        <Tag color={estimate.isStpApproved ? 'green' : 'orange'}>
-          {estimate.isStpApproved ? 'Approved' : formatReviewMode(estimate.reviewMode)}
-        </Tag>
+        {!customerView ? (
+          <Tag color={estimate.isStpApproved ? 'green' : 'orange'}>
+            {estimate.isStpApproved ? 'Approved' : formatReviewMode(estimate.reviewMode)}
+          </Tag>
+        ) : null}
         <Tag color="processing">RM {estimate.totalAmount.toFixed(2)}</Tag>
       </Space>
 
@@ -114,6 +120,11 @@ export function formatEstimateStatus(status) {
     return 'No estimate status';
   }
 
+  const normalized = String(status).trim().toLowerCase();
+  if (normalized === 'stpapproved' || normalized === 'stp approved') {
+    return 'Approved';
+  }
+
   return String(status)
     .replace(/([a-z])([A-Z])/g, '$1 $2')
     .replace(/\b\w/g, (match) => match.toUpperCase());
@@ -122,6 +133,11 @@ export function formatEstimateStatus(status) {
 export function formatReviewMode(value) {
   if (!value) {
     return 'No review mode';
+  }
+
+  const normalized = String(value).trim().toLowerCase();
+  if (normalized === 'stp' || normalized === 'straightthrough' || normalized === 'straight through') {
+    return 'Approved';
   }
 
   return String(value)
