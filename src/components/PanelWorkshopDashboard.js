@@ -52,6 +52,9 @@ import WorkshopNotificationScreen from './WorkshopNotificationScreen';
 
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
+const ALLOWED_QUOTATION_FILE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'pdf'];
+const ALLOWED_QUOTATION_FILE_ACCEPT = '.png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf';
+const ALLOWED_QUOTATION_FILE_MESSAGE = 'Only PNG, JPG, JPEG, or PDF files are accepted.';
 
 function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -61,6 +64,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   const [searchText, setSearchText] = useState('');
   const [estimateModalOpen, setEstimateModalOpen] = useState(false);
   const [submittingEstimate, setSubmittingEstimate] = useState(false);
+  const [estimateConfirmation, setEstimateConfirmation] = useState(null);
   const [receiptDocumentFiles, setReceiptDocumentFiles] = useState([]);
   const [supportingDocumentFiles, setSupportingDocumentFiles] = useState([]);
   const [claimLinkRequests, setClaimLinkRequests] = useState([]);
@@ -533,7 +537,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       <Modal
         open={estimateModalOpen}
         onCancel={closeEstimateModal}
-        onOk={handleSubmitEstimate}
+        onOk={handlePrepareEstimateSubmission}
         okText="Save Submission"
         confirmLoading={submittingEstimate}
         width={760}
@@ -543,24 +547,80 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
           <Form.Item
             name="totalAmount"
             label="Total Amount (RM)"
-            rules={[{ required: true, message: 'Total amount is required.' }]}
+            rules={[
+              { required: true, message: 'Total amount is required.' },
+              {
+                validator: (_, value) =>
+                  Number(value) > 0
+                    ? Promise.resolve()
+                    : Promise.reject(new Error('Total amount must be greater than 0.')),
+              },
+            ]}
           >
-            <Input type="number" min={0} step="0.01" />
+            <Input type="number" min={0.01} step="0.01" />
           </Form.Item>
           <Form.Item name="remarks" label="Remarks">
             <Input.TextArea rows={3} />
           </Form.Item>
           <Form.Item label="Receipt / Quotation Document" required>
-            <Upload beforeUpload={() => false} fileList={receiptDocumentFiles} onChange={({ fileList }) => setReceiptDocumentFiles(fileList)} maxCount={1}>
+            <Upload
+              accept={ALLOWED_QUOTATION_FILE_ACCEPT}
+              beforeUpload={validateQuotationUploadFile}
+              fileList={receiptDocumentFiles}
+              onChange={({ fileList }) => setReceiptDocumentFiles(filterAllowedQuotationFiles(fileList))}
+              maxCount={1}
+            >
               <Button icon={<CloudUploadOutlined />}>Choose Receipt / Quotation</Button>
             </Upload>
+            <Text type="secondary">{ALLOWED_QUOTATION_FILE_MESSAGE}</Text>
           </Form.Item>
           <Form.Item label="Supporting Documents">
-            <Upload beforeUpload={() => false} fileList={supportingDocumentFiles} onChange={({ fileList }) => setSupportingDocumentFiles(fileList)} multiple>
+            <Upload
+              accept={ALLOWED_QUOTATION_FILE_ACCEPT}
+              beforeUpload={validateQuotationUploadFile}
+              fileList={supportingDocumentFiles}
+              onChange={({ fileList }) => setSupportingDocumentFiles(filterAllowedQuotationFiles(fileList))}
+              multiple
+            >
               <Button icon={<CloudUploadOutlined />}>Choose Supporting Documents</Button>
             </Upload>
+            <Text type="secondary">{ALLOWED_QUOTATION_FILE_MESSAGE}</Text>
           </Form.Item>
         </Form>
+      </Modal>
+
+      <Modal
+        open={Boolean(estimateConfirmation)}
+        onCancel={() => setEstimateConfirmation(null)}
+        onOk={handleConfirmEstimateSubmission}
+        okText="Confirm Submission"
+        cancelText="Review Details"
+        confirmLoading={submittingEstimate}
+        title="Confirm quotation submission?"
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message="Please confirm these quotation details"
+            description="After confirmation, the quotation and documents will be submitted for claim review."
+          />
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="Claim ID">{estimateConfirmation?.claimId}</Descriptions.Item>
+            <Descriptions.Item label="Total Amount">
+              RM {Number(estimateConfirmation?.totalAmount || 0).toFixed(2)}
+            </Descriptions.Item>
+            <Descriptions.Item label="Receipt / Quotation">
+              {estimateConfirmation?.receiptFileName}
+            </Descriptions.Item>
+            <Descriptions.Item label="Supporting Documents">
+              {estimateConfirmation?.supportingFileCount || 0}
+            </Descriptions.Item>
+            {estimateConfirmation?.remarks ? (
+              <Descriptions.Item label="Remarks">{estimateConfirmation.remarks}</Descriptions.Item>
+            ) : null}
+          </Descriptions>
+        </Space>
       </Modal>
 
       <Modal
@@ -617,7 +677,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
 
     setSelectedClaim(claim);
     estimateForm.setFieldsValue({
-      totalAmount: 0,
+      totalAmount: 1,
       remarks: '',
     });
     setReceiptDocumentFiles([]);
@@ -627,13 +687,14 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
 
   function closeEstimateModal() {
     setEstimateModalOpen(false);
+    setEstimateConfirmation(null);
     setReceiptDocumentFiles([]);
     setSupportingDocumentFiles([]);
     estimateForm.resetFields();
     setSelectedClaim(null);
   }
 
-  async function handleSubmitEstimate() {
+  async function handlePrepareEstimateSubmission() {
     if (!selectedClaim) {
       return;
     }
@@ -648,6 +709,26 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
 
     if (receiptDocumentFiles.length === 0) {
       message.warning('Please upload the receipt or quotation document.');
+      return;
+    }
+
+    const selectedFiles = [...receiptDocumentFiles, ...supportingDocumentFiles];
+    if (selectedFiles.some((file) => !isAllowedQuotationFile(file.originFileObj ?? file))) {
+      message.warning(ALLOWED_QUOTATION_FILE_MESSAGE);
+      return;
+    }
+
+    setEstimateConfirmation({
+      claimId: selectedClaim.id,
+      totalAmount: Number(values.totalAmount || 0),
+      receiptFileName: getUploadFileName(receiptDocumentFiles[0]),
+      supportingFileCount: supportingDocumentFiles.length,
+      remarks: values.remarks?.trim() || '',
+    });
+  }
+
+  async function handleConfirmEstimateSubmission() {
+    if (!selectedClaim || !estimateConfirmation) {
       return;
     }
 
@@ -668,11 +749,11 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       }
 
       await submitWorkshopRepairEstimate({
-        claimId: selectedClaim.id,
-        totalAmount: Number(values.totalAmount || 0),
+        claimId: estimateConfirmation.claimId,
+        totalAmount: estimateConfirmation.totalAmount,
         receiptOrQuotationDocument,
         supportingDocuments,
-        remarks: values.remarks || null,
+        remarks: estimateConfirmation.remarks || null,
       });
 
       message.success('Workshop submission saved.');
@@ -738,6 +819,34 @@ function getApiErrorMessage(error, fallbackMessage) {
     error?.message ||
     fallbackMessage
   );
+}
+
+function validateQuotationUploadFile(file) {
+  if (!isAllowedQuotationFile(file)) {
+    message.warning(ALLOWED_QUOTATION_FILE_MESSAGE);
+    return Upload.LIST_IGNORE;
+  }
+
+  return false;
+}
+
+function filterAllowedQuotationFiles(fileList) {
+  return fileList.filter((file) => isAllowedQuotationFile(file.originFileObj ?? file));
+}
+
+function getUploadFileName(file) {
+  return file?.name || file?.originFileObj?.name || 'Selected file';
+}
+
+function isAllowedQuotationFile(file) {
+  const mimeType = String(file?.type || '').toLowerCase();
+  if (mimeType === 'image/png' || mimeType === 'image/jpeg' || mimeType === 'application/pdf') {
+    return true;
+  }
+
+  const fileName = String(file?.name || file?.url || file?.thumbUrl || '').toLowerCase();
+  const extension = fileName.split('?')[0].split('#')[0].split('.').pop();
+  return ALLOWED_QUOTATION_FILE_EXTENSIONS.includes(extension);
 }
 
 function isAlreadyAtWorkshop(appointment) {

@@ -30,6 +30,24 @@ export async function getPanelWorkshopsByState(state) {
   return Array.isArray(payload) ? payload.map(mapWorkshop) : [];
 }
 
+export async function getBookedWorkshopAppointmentSlots({ workshopId, preferredDate, excludedClaimId }) {
+  const response = await apiClient.get('/Workshop/appointments/booked-slots', {
+    params: {
+      workshopId,
+      preferredDate,
+      excludedClaimId,
+    },
+  });
+  const payload = response.data?.data ?? response.data ?? [];
+
+  return Array.isArray(payload)
+    ? payload.map((slot) => ({
+        timeSlotStart: slot.timeSlotStart ?? slot.TimeSlotStart ?? null,
+        timeSlotEnd: slot.timeSlotEnd ?? slot.TimeSlotEnd ?? null,
+      }))
+    : [];
+}
+
 export async function createOrUpdateWorkshopAppointment(payload) {
   const response = await apiClient.post('/Workshop/appointments', payload);
   return mapWorkshopAppointment(response.data?.data ?? response.data ?? {});

@@ -34,6 +34,7 @@ import {
   acceptWorkshopClaimLinkRequest,
   assignVehicleAlreadyAtWorkshop,
   createOrUpdateWorkshopAppointment,
+  getBookedWorkshopAppointmentSlots,
   getMyCustomerClaimLinkRequests,
   getMyWorkshopPaymentByEstimate,
   getPanelWorkshopStates,
@@ -66,14 +67,19 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
   const [availableWorkshops, setAvailableWorkshops] = useState([]);
   const [selectedWorkshopId, setSelectedWorkshopId] = useState(undefined);
   const [preferredDate, setPreferredDate] = useState(null);
+  const [serverBookedTimeSlots, setServerBookedTimeSlots] = useState([]);
+  const [bookedSlotsLoading, setBookedSlotsLoading] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('AM');
   const [selectedTimeSlot, setSelectedTimeSlot] = useState(undefined);
   const [bookingNote, setBookingNote] = useState('');
   const [submittingBooking, setSubmittingBooking] = useState(false);
+  const [bookingConfirmation, setBookingConfirmation] = useState(null);
+  const [bookingError, setBookingError] = useState('');
   const [arrivalDate, setArrivalDate] = useState(null);
   const [withdrawalReason, setWithdrawalReason] = useState('');
   const [submittingWithdrawal, setSubmittingWithdrawal] = useState(false);
   const [claimPayments, setClaimPayments] = useState({});
+  const [appointmentOverrides, setAppointmentOverrides] = useState({});
   const [workshopLinkRequests, setWorkshopLinkRequests] = useState([]);
   const [loadingWorkshopLinkRequests, setLoadingWorkshopLinkRequests] = useState(false);
   const [respondingLinkRequestId, setRespondingLinkRequestId] = useState(null);
@@ -95,8 +101,9 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
       claims.map((claim) => ({
         ...claim,
         workshopPayment: claimPayments[claim.id] || claim.workshopPayment || null,
+        workshopAppointment: appointmentOverrides[getIdKey(claim.id)] || claim.workshopAppointment || null,
       })),
-    [claimPayments, claims]
+    [appointmentOverrides, claimPayments, claims]
   );
 
   const bookedTimeSlots = useMemo(
@@ -106,6 +113,11 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
       preferredDate,
     }),
     [claimsWithPayments, preferredDate, selectedClaim?.id, selectedWorkshopId]
+  );
+
+  const unavailableTimeSlots = useMemo(
+    () => new Set([...bookedTimeSlots, ...serverBookedTimeSlots]),
+    [bookedTimeSlots, serverBookedTimeSlots]
   );
 
   const filteredClaims = useMemo(() => {
@@ -211,11 +223,55 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
   }, [alreadyAtWorkshopModalOpen, bookingModalOpen, selectedState]);
 
   useEffect(() => {
-    if (selectedTimeSlot && bookedTimeSlots.has(selectedTimeSlot)) {
+    if (!bookingModalOpen || !selectedWorkshopId || !preferredDate) {
+      setServerBookedTimeSlots([]);
+      setBookedSlotsLoading(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    async function loadBookedSlots() {
+      setBookedSlotsLoading(true);
+      try {
+        const slots = await getBookedWorkshopAppointmentSlots({
+          workshopId: selectedWorkshopId,
+          preferredDate: preferredDate.format('YYYY-MM-DDT00:00:00'),
+          excludedClaimId: selectedClaim?.id,
+        });
+
+        if (isMounted) {
+          setServerBookedTimeSlots(
+            slots
+              .map((slot) => normalizeTimeValue(slot.timeSlotStart))
+              .filter(Boolean)
+          );
+        }
+      } catch (error) {
+        if (isMounted) {
+          setServerBookedTimeSlots([]);
+          message.warning(getApiErrorMessage(error, 'Unable to load booked workshop time slots.'));
+        }
+      } finally {
+        if (isMounted) {
+          setBookedSlotsLoading(false);
+        }
+      }
+    }
+
+    loadBookedSlots();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [bookingModalOpen, preferredDate, selectedClaim?.id, selectedWorkshopId]);
+
+  useEffect(() => {
+    if (selectedTimeSlot && unavailableTimeSlots.has(selectedTimeSlot)) {
       setSelectedTimeSlot(undefined);
       message.warning('That appointment time has already been booked. Please choose another time slot.');
     }
-  }, [bookedTimeSlots, selectedTimeSlot]);
+  }, [selectedTimeSlot, unavailableTimeSlots]);
 
   return (
     <div className="portal-dashboard-stack">
@@ -467,6 +523,14 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
         width={920}
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          {bookingError ? (
+            <Alert
+              type="error"
+              showIcon
+              message="Booking could not be saved"
+              description={bookingError}
+            />
+          ) : null}
           <Alert
             type="info"
             showIcon
@@ -512,7 +576,7 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
 
           {selectedWorkshopId ? (
             <Card size="small">
-              {renderSelectedWorkshop(availableWorkshops.find((item) => item.workshopId === selectedWorkshopId))}
+              {renderSelectedWorkshop(findWorkshopById(availableWorkshops, selectedWorkshopId))}
             </Card>
           ) : null}
 
@@ -544,16 +608,19 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
               onChange={setSelectedTimeSlot}
               size="large"
               placeholder="Select appointment time"
+              loading={bookedSlotsLoading}
+              disabled={!selectedWorkshopId || !preferredDate}
               options={periodTimeSlots.map((slot) => ({
-                label: bookedTimeSlots.has(slot.value) ? `${slot.label} - Booked` : slot.label,
+                label: unavailableTimeSlots.has(slot.value) ? `${slot.label} - Booked` : slot.label,
                 value: slot.value,
-                disabled: bookedTimeSlots.has(slot.value),
+                disabled: unavailableTimeSlots.has(slot.value),
               }))}
             />
           </Space>
 
           <Text type="secondary">
             Workshop appointment slots use normal working hours, Monday to Saturday, 9:00 AM to 6:00 PM.
+            Booked slots are disabled after you select a workshop and date.
           </Text>
 
           <Input.TextArea
@@ -620,7 +687,7 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
 
           {selectedWorkshopId ? (
             <Card size="small">
-              {renderSelectedWorkshop(availableWorkshops.find((item) => item.workshopId === selectedWorkshopId))}
+              {renderSelectedWorkshop(findWorkshopById(availableWorkshops, selectedWorkshopId))}
             </Card>
           ) : null}
 
@@ -644,6 +711,60 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
             maxLength={1000}
             placeholder="Optional note, such as towing details"
           />
+        </Space>
+      </Modal>
+
+      <Modal
+        open={Boolean(bookingConfirmation)}
+        title={
+          bookingConfirmation?.type === 'scheduled'
+            ? bookingConfirmation?.isUpdate
+              ? 'Confirm workshop booking update?'
+              : 'Confirm panel workshop booking?'
+            : bookingConfirmation?.isUpdate
+              ? 'Confirm workshop assignment update?'
+              : 'Confirm vehicle already at workshop?'
+        }
+        onCancel={() => setBookingConfirmation(null)}
+        onOk={handleConfirmBooking}
+        okText={
+          bookingConfirmation?.type === 'scheduled'
+            ? bookingConfirmation?.isUpdate
+              ? 'Confirm Update'
+              : 'Confirm Booking'
+            : bookingConfirmation?.isUpdate
+              ? 'Confirm Update'
+              : 'Confirm Assignment'
+        }
+        cancelText="Review Details"
+        confirmLoading={submittingBooking}
+      >
+        <Space direction="vertical" size={12} style={{ width: '100%' }}>
+          <Alert
+            type="info"
+            showIcon
+            message={
+              bookingConfirmation?.type === 'scheduled'
+                ? 'Please confirm these workshop booking details'
+                : 'Please confirm this workshop assignment'
+            }
+            description={
+              bookingConfirmation?.type === 'scheduled'
+                ? 'After confirmation, the selected panel workshop will receive this appointment information.'
+                : 'After confirmation, the selected workshop can submit a repair quotation for this claim.'
+            }
+          />
+          <Descriptions bordered column={1} size="small">
+            <Descriptions.Item label="Claim ID">{bookingConfirmation?.claimId}</Descriptions.Item>
+            <Descriptions.Item label="Workshop">{bookingConfirmation?.workshopName}</Descriptions.Item>
+            <Descriptions.Item label="State">{bookingConfirmation?.state}</Descriptions.Item>
+            <Descriptions.Item label={bookingConfirmation?.type === 'scheduled' ? 'Date' : 'Vehicle arrival date'}>
+              {bookingConfirmation?.displayDate}
+            </Descriptions.Item>
+            {bookingConfirmation?.type === 'scheduled' ? (
+              <Descriptions.Item label="Time">{bookingConfirmation.displayTime}</Descriptions.Item>
+            ) : null}
+          </Descriptions>
         </Space>
       </Modal>
 
@@ -753,6 +874,7 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
   async function openBookingModal(claim) {
     setSelectedClaim(claim);
     setBookingModalOpen(true);
+    setServerBookedTimeSlots([]);
     setSelectedState(claim.workshopAppointment?.workshopState || undefined);
     setSelectedWorkshopId(claim.workshopAppointment?.workshopId || undefined);
     setPreferredDate(claim.workshopAppointment?.preferredDate ? moment(claim.workshopAppointment.preferredDate) : null);
@@ -792,73 +914,35 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
       return;
     }
 
+    setBookingError('');
+
     if (!selectedState || !selectedWorkshopId || !preferredDate || !selectedTimeSlot) {
       message.warning('Please complete the workshop, date, and appointment time selection.');
       return;
     }
 
-    if (bookedTimeSlots.has(selectedTimeSlot)) {
+    if (unavailableTimeSlots.has(selectedTimeSlot)) {
       message.warning('This workshop time slot is already booked. Please choose another date or time.');
       return;
     }
 
     const claimId = selectedClaim.id;
-    const selectedWorkshop = availableWorkshops.find((workshop) => workshop.workshopId === selectedWorkshopId);
+    const selectedWorkshop = findWorkshopById(availableWorkshops, selectedWorkshopId);
     const timeSlotEnd = addMinutesToTime(selectedTimeSlot, WORKSHOP_SLOT_MINUTES);
 
-    Modal.confirm({
-      title: selectedClaim.workshopAppointment ? 'Confirm workshop booking update?' : 'Confirm panel workshop booking?',
-      okText: selectedClaim.workshopAppointment ? 'Confirm Update' : 'Confirm Booking',
-      cancelText: 'Review Details',
-      content: (
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Alert
-            type="info"
-            showIcon
-            message="Please confirm these workshop booking details"
-            description="After confirmation, the selected panel workshop will receive this appointment information."
-          />
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Claim ID">{claimId}</Descriptions.Item>
-            <Descriptions.Item label="Workshop">{selectedWorkshop?.name || selectedWorkshopId}</Descriptions.Item>
-            <Descriptions.Item label="State">{selectedState}</Descriptions.Item>
-            <Descriptions.Item label="Date">{preferredDate.format('DD MMM YYYY')}</Descriptions.Item>
-            <Descriptions.Item label="Time">
-              {formatTimeRange(`${selectedTimeSlot}:00`, `${timeSlotEnd}:00`)}
-            </Descriptions.Item>
-          </Descriptions>
-        </Space>
-      ),
-      onOk: async () => {
-        setSubmittingBooking(true);
-        try {
-          await createOrUpdateWorkshopAppointment({
-            claimId,
-            workshopId: selectedWorkshopId,
-            preferredDate: preferredDate.format('YYYY-MM-DDT00:00:00'),
-            timeSlotStart: `${selectedTimeSlot}:00`,
-            timeSlotEnd: `${timeSlotEnd}:00`,
-            notes: bookingNote || null,
-          });
-
-          message.success('Panel workshop appointment saved.');
-          closeBookingModal();
-          if (onClaimsChanged) {
-            await onClaimsChanged();
-          }
-        } catch (error) {
-          message.error(
-            error?.response?.data?.message ||
-              error?.response?.data?.title ||
-              (typeof error?.response?.data === 'string' ? error.response.data : null) ||
-              error?.message ||
-              'Unable to save the workshop booking.'
-          );
-          throw error;
-        } finally {
-          setSubmittingBooking(false);
-        }
-      },
+    setBookingConfirmation({
+      type: 'scheduled',
+      isUpdate: Boolean(selectedClaim.workshopAppointment),
+      claimId,
+      workshopId: selectedWorkshopId,
+      workshopName: selectedWorkshop?.name || selectedWorkshopId,
+      state: selectedState,
+      preferredDate: preferredDate.format('YYYY-MM-DDT00:00:00'),
+      displayDate: preferredDate.format('DD MMM YYYY'),
+      timeSlotStart: `${selectedTimeSlot}:00`,
+      timeSlotEnd: `${timeSlotEnd}:00`,
+      displayTime: formatTimeRange(`${selectedTimeSlot}:00`, `${timeSlotEnd}:00`),
+      notes: bookingNote || null,
     });
   }
 
@@ -890,57 +974,86 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
       return;
     }
 
+    setBookingError('');
+
     if (!selectedState || !selectedWorkshopId || !arrivalDate) {
       message.warning('Please select the panel workshop and vehicle arrival date.');
       return;
     }
 
     const claimId = selectedClaim.id;
-    const selectedWorkshop = availableWorkshops.find((workshop) => workshop.workshopId === selectedWorkshopId);
+    const selectedWorkshop = findWorkshopById(availableWorkshops, selectedWorkshopId);
 
-    Modal.confirm({
-      title: isAlreadyAtWorkshop(selectedClaim.workshopAppointment) ? 'Confirm workshop assignment update?' : 'Confirm vehicle already at workshop?',
-      okText: isAlreadyAtWorkshop(selectedClaim.workshopAppointment) ? 'Confirm Update' : 'Confirm Assignment',
-      cancelText: 'Review Details',
-      content: (
-        <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          <Alert
-            type="info"
-            showIcon
-            message="Please confirm this workshop assignment"
-            description="After confirmation, the selected workshop can submit a repair quotation for this claim."
-          />
-          <Descriptions bordered column={1} size="small">
-            <Descriptions.Item label="Claim ID">{claimId}</Descriptions.Item>
-            <Descriptions.Item label="Workshop">{selectedWorkshop?.name || selectedWorkshopId}</Descriptions.Item>
-            <Descriptions.Item label="State">{selectedState}</Descriptions.Item>
-            <Descriptions.Item label="Vehicle arrival date">{arrivalDate.format('DD MMM YYYY')}</Descriptions.Item>
-          </Descriptions>
-        </Space>
-      ),
-      onOk: async () => {
-        setSubmittingBooking(true);
-        try {
-          await assignVehicleAlreadyAtWorkshop({
-            claimId,
-            workshopId: selectedWorkshopId,
-            arrivalDate: arrivalDate.format('YYYY-MM-DDT00:00:00'),
-            notes: bookingNote.trim() || null,
-          });
-
-          message.success('Workshop assignment saved. The workshop can now submit its quotation.');
-          closeAlreadyAtWorkshopModal();
-          if (onClaimsChanged) {
-            await onClaimsChanged();
-          }
-        } catch (error) {
-          message.error(getApiErrorMessage(error, 'Unable to save the workshop assignment.'));
-          throw error;
-        } finally {
-          setSubmittingBooking(false);
-        }
-      },
+    setBookingConfirmation({
+      type: 'alreadyAtWorkshop',
+      isUpdate: isAlreadyAtWorkshop(selectedClaim.workshopAppointment),
+      claimId,
+      workshopId: selectedWorkshopId,
+      workshopName: selectedWorkshop?.name || selectedWorkshopId,
+      state: selectedState,
+      arrivalDate: arrivalDate.format('YYYY-MM-DDT00:00:00'),
+      displayDate: arrivalDate.format('DD MMM YYYY'),
+      notes: bookingNote.trim() || null,
     });
+  }
+
+  async function handleConfirmBooking() {
+    if (!bookingConfirmation) {
+      return;
+    }
+
+    setBookingError('');
+    setSubmittingBooking(true);
+    try {
+      if (bookingConfirmation.type === 'scheduled') {
+        const appointment = await createOrUpdateWorkshopAppointment({
+          claimId: bookingConfirmation.claimId,
+          workshopId: bookingConfirmation.workshopId,
+          preferredDate: bookingConfirmation.preferredDate,
+          timeSlotStart: bookingConfirmation.timeSlotStart,
+          timeSlotEnd: bookingConfirmation.timeSlotEnd,
+          notes: bookingConfirmation.notes,
+        });
+
+        setAppointmentOverrides((current) => ({
+          ...current,
+          [getIdKey(bookingConfirmation.claimId)]: appointment,
+        }));
+        message.success('Panel workshop appointment saved.');
+        setBookingConfirmation(null);
+        closeBookingModal();
+      } else {
+        const appointment = await assignVehicleAlreadyAtWorkshop({
+          claimId: bookingConfirmation.claimId,
+          workshopId: bookingConfirmation.workshopId,
+          arrivalDate: bookingConfirmation.arrivalDate,
+          notes: bookingConfirmation.notes,
+        });
+
+        setAppointmentOverrides((current) => ({
+          ...current,
+          [getIdKey(bookingConfirmation.claimId)]: appointment,
+        }));
+        message.success('Workshop assignment saved. The workshop can now submit its quotation.');
+        setBookingConfirmation(null);
+        closeAlreadyAtWorkshopModal();
+      }
+
+      if (onClaimsChanged) {
+        Promise.resolve(onClaimsChanged()).catch((error) => {
+          message.warning(getApiErrorMessage(error, 'Booking saved, but the latest claim list could not be refreshed yet.'));
+        });
+      }
+    } catch (error) {
+      const errorMessage =
+        bookingConfirmation.type === 'scheduled'
+          ? getApiErrorMessage(error, 'Unable to save the workshop booking.')
+          : getApiErrorMessage(error, 'Unable to save the workshop assignment.');
+      setBookingError(errorMessage);
+      message.error(errorMessage);
+    } finally {
+      setSubmittingBooking(false);
+    }
   }
 
   function openWithdrawModal(claim) {
@@ -1045,6 +1158,10 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
 
   function closeBookingModal() {
     setBookingModalOpen(false);
+    setBookingConfirmation(null);
+    setBookingError('');
+    setServerBookedTimeSlots([]);
+    setBookedSlotsLoading(false);
     setBookingStates([]);
     setAvailableWorkshops([]);
     setSelectedState(undefined);
@@ -1058,6 +1175,10 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
 
   function closeAlreadyAtWorkshopModal() {
     setAlreadyAtWorkshopModalOpen(false);
+    setBookingConfirmation(null);
+    setBookingError('');
+    setServerBookedTimeSlots([]);
+    setBookedSlotsLoading(false);
     setBookingStates([]);
     setAvailableWorkshops([]);
     setSelectedState(undefined);
@@ -1245,8 +1366,8 @@ function getBookedTimeSlotsForSelection(claims, { selectedClaimId, selectedWorks
 
         return (
           appointment &&
-          claim.id !== selectedClaimId &&
-          appointment.workshopId === selectedWorkshopId &&
+          !isSameId(claim.id, selectedClaimId) &&
+          isSameId(appointment.workshopId, selectedWorkshopId) &&
           !isAlreadyAtWorkshop(appointment) &&
           String(appointment.status || '').toLowerCase() !== 'cancelled' &&
           appointment.preferredDate &&
@@ -1256,6 +1377,18 @@ function getBookedTimeSlotsForSelection(claims, { selectedClaimId, selectedWorks
       })
       .map((claim) => normalizeTimeValue(claim.workshopAppointment.timeSlotStart))
   );
+}
+
+function findWorkshopById(workshops, workshopId) {
+  return workshops.find((workshop) => isSameId(workshop.workshopId, workshopId));
+}
+
+function isSameId(left, right) {
+  return String(left || '').toLowerCase() === String(right || '').toLowerCase();
+}
+
+function getIdKey(value) {
+  return String(value || '').toLowerCase();
 }
 
 function canWithdrawClaim(claim) {
@@ -1309,6 +1442,10 @@ function formatTimeRange(start, end) {
 }
 
 function normalizeTimeValue(value) {
+  if (!value) {
+    return '';
+  }
+
   return String(value).slice(0, 5);
 }
 
