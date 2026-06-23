@@ -73,9 +73,13 @@ export default function ContactSupportScreen() {
               <span style={styles.cardSub}>{contact.subtitle}</span>
             </div>
             <div style={styles.divider} />
-            <span style={{ ...styles.phone, color: contact.accent }}>
+            <a
+              href={`tel:${toTelHref(contact.phone)}`}
+              style={{ ...styles.phone, color: contact.accent }}
+              aria-label={`Call ${contact.title} at ${contact.phone}`}
+            >
               {contact.phone}
-            </span>
+            </a>
             <div style={{ ...styles.callChip, background: `${contact.accent}12`, color: contact.accent }}>
               <span style={styles.callDot(contact.accent)} />
               Hotline
@@ -85,6 +89,10 @@ export default function ContactSupportScreen() {
       </div>
     </div>
   );
+}
+
+function toTelHref(phone) {
+  return String(phone || '').replace(/[^\d+]/g, '');
 }
 
 const styles = {
@@ -149,6 +157,8 @@ const styles = {
     fontWeight: 700,
     letterSpacing: -0.5,
     lineHeight: 1.2,
+    textDecoration: 'none',
+    width: 'fit-content',
   },
   callChip: {
     display: 'inline-flex',

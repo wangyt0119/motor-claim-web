@@ -8,6 +8,7 @@ import {
   HistoryOutlined,
   LineChartOutlined,
   PlusCircleOutlined,
+  RobotOutlined,
   ToolOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
@@ -22,7 +23,7 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
   );
 
   const activeClaims = useMemo(
-    () => claims.filter((claim) => !['Approved', 'Rejected'].includes(claim.status)),
+    () => claims.filter((claim) => !['Approved', 'Rejected', 'Withdrawn'].includes(claim.status)),
     [claims]
   );
 
@@ -99,7 +100,7 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
             showIcon
             type="success"
             message="You are up to date"
-            description="There are no customer actions waiting right now."
+            description="There are no actions waiting right now."
             style={{ borderRadius: 18, border: '1px solid rgba(34, 197, 94, 0.22)', background: '#f0fdf4' }}
           />
         )}
@@ -155,8 +156,8 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
                   <Title level={4} className="portal-dashboard-card-title">Recent Claims</Title>
                   <Text className="portal-dashboard-card-subtitle">Your newest submissions and their latest status</Text>
                 </div>
-                <Button type="link" onClick={() => onOpenSection('history')}>
-                  View all history
+                <Button type="link" onClick={() => onOpenSection('track')}>
+                  View All Claim
                 </Button>
               </div>
 
@@ -207,6 +208,9 @@ function CustomerDashboardScreen({ currentUser, claims = [], coverages = [], onO
                   </Button>
                   <Button className="portal-dashboard-action-button" icon={<LineChartOutlined />} block onClick={() => onOpenSection('track')}>
                     Track Claims
+                  </Button>
+                  <Button className="portal-dashboard-action-button" icon={<RobotOutlined />} block onClick={() => onOpenSection('damage-assessment')}>
+                    AI Damage Assessment
                   </Button>
                   <Button className="portal-dashboard-action-button" icon={<HistoryOutlined />} block onClick={() => onOpenSection('history')}>
                     Claim History
@@ -295,6 +299,8 @@ function getStatusColor(status) {
       return 'green';
     case 'rejected':
       return 'red';
+    case 'withdrawn':
+      return 'default';
     case 'pending customer action':
       return 'purple';
     case 'customer responded':

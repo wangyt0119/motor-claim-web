@@ -47,3 +47,8 @@ export async function submitCustomerClaimResponse(claimId, { responseNote, respo
   });
   return mapClaimFromApi(response.data?.data ?? response.data ?? {});
 }
+
+export async function withdrawClaim(claimId, reason) {
+  const response = await apiClient.post(`/Claim/${claimId}/withdraw`, { reason });
+  return mapClaimFromApi(response.data?.data ?? response.data ?? {});
+}

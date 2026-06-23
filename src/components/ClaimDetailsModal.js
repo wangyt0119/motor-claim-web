@@ -10,14 +10,24 @@ import {
   Space,
   Tag,
   Typography,
+  message,
 } from 'antd';
-import { DollarOutlined, FileTextOutlined } from '@ant-design/icons';
+import { CopyOutlined, DollarOutlined, FileTextOutlined } from '@ant-design/icons';
 import moment from 'moment';
 import WorkshopRepairEstimateCard from './WorkshopRepairEstimateCard';
 
 const { Title, Text } = Typography;
 
 function ClaimDetailsModal({ claim, coverages = [], open, onClose }) {
+  async function copyClaimId() {
+    try {
+      await navigator.clipboard.writeText(String(claim.id));
+      message.success(`Claim ID ${claim.id} copied`);
+    } catch (error) {
+      message.error('Unable to copy claim ID');
+    }
+  }
+
   return (
     <Modal
       open={open}
@@ -30,7 +40,14 @@ function ClaimDetailsModal({ claim, coverages = [], open, onClose }) {
         <Space direction="vertical" size={16} style={{ width: '100%' }}>
           <Card title="Submitted Claim Details">
             <Descriptions bordered size="small" column={1}>
-              <Descriptions.Item label="Claim ID">{claim.id}</Descriptions.Item>
+              <Descriptions.Item label="Claim ID">
+                <Space wrap>
+                  <Text strong>{claim.id}</Text>
+                  <Button size="small" icon={<CopyOutlined />} onClick={copyClaimId}>
+                    Copy
+                  </Button>
+                </Space>
+              </Descriptions.Item>
               <Descriptions.Item label="Status">{claim.status}</Descriptions.Item>
               <Descriptions.Item label="Claim type">{claim.type}</Descriptions.Item>
               <Descriptions.Item label="Submitted at">{moment(claim.date).format('DD MMM YYYY, hh:mm A')}</Descriptions.Item>
@@ -43,6 +60,12 @@ function ClaimDetailsModal({ claim, coverages = [], open, onClose }) {
                 {claim.requestedItems?.length ? claim.requestedItems.map((item) => item.label).join(', ') : 'None'}
               </Descriptions.Item>
               <Descriptions.Item label="Customer response note">{claim.customerResponseNote || 'No response note'}</Descriptions.Item>
+              {claim.withdrawnAt ? (
+                <Descriptions.Item label="Withdrawn at">{moment(claim.withdrawnAt).format('DD MMM YYYY, hh:mm A')}</Descriptions.Item>
+              ) : null}
+              {claim.withdrawalReason ? (
+                <Descriptions.Item label="Withdrawal reason">{claim.withdrawalReason}</Descriptions.Item>
+              ) : null}
             </Descriptions>
           </Card>
 
@@ -72,13 +95,18 @@ function ClaimDetailsModal({ claim, coverages = [], open, onClose }) {
           </Card>
 
           {claim.workshopAppointment ? (
-            <Card title="Workshop appointment">
+            <Card title={isAlreadyAtWorkshop(claim.workshopAppointment) ? 'Workshop assignment' : 'Workshop appointment'}>
               <Descriptions bordered size="small" column={1}>
                 <Descriptions.Item label="Workshop">{claim.workshopAppointment.workshopName}</Descriptions.Item>
                 <Descriptions.Item label="Address">{claim.workshopAppointment.workshopAddress}</Descriptions.Item>
-                <Descriptions.Item label="Date">{moment(claim.workshopAppointment.preferredDate).format('DD MMM YYYY')}</Descriptions.Item>
-                <Descriptions.Item label="Time">{formatTimeRange(claim.workshopAppointment.timeSlotStart, claim.workshopAppointment.timeSlotEnd)}</Descriptions.Item>
+                <Descriptions.Item label={isAlreadyAtWorkshop(claim.workshopAppointment) ? 'Arrival date' : 'Date'}>
+                  {moment(claim.workshopAppointment.preferredDate).format('DD MMM YYYY')}
+                </Descriptions.Item>
+                {!isAlreadyAtWorkshop(claim.workshopAppointment) ? (
+                  <Descriptions.Item label="Time">{formatTimeRange(claim.workshopAppointment.timeSlotStart, claim.workshopAppointment.timeSlotEnd)}</Descriptions.Item>
+                ) : null}
                 <Descriptions.Item label="Status">{claim.workshopAppointment.status || 'Pending'}</Descriptions.Item>
+                <Descriptions.Item label="Notes">{claim.workshopAppointment.notes || 'No notes'}</Descriptions.Item>
               </Descriptions>
             </Card>
           ) : null}
@@ -173,6 +201,14 @@ function getPaymentProgress(claim) {
   const paymentStatus = String(payment?.status || claim.paymentStatus || '').toLowerCase();
   const estimateStatus = String(claim.workshopRepairEstimate?.status || '').toLowerCase();
 
+  if (String(claim.status || '').toLowerCase() === 'withdrawn') {
+    return {
+      label: 'Withdrawn',
+      tagColor: 'default',
+      description: 'This claim was withdrawn, so no payment will be processed.',
+    };
+  }
+
   if (paymentStatus === 'paid') {
     return {
       label: 'Paid',
@@ -234,6 +270,10 @@ function getPaymentProgress(claim) {
     tagColor: 'default',
     description: 'Payment progress will appear after claim approval and workshop processing.',
   };
+}
+
+function isAlreadyAtWorkshop(appointment) {
+  return String(appointment?.assignmentType || '').toLowerCase() === 'alreadyatworkshop';
 }
 
 function openDocument(url) {

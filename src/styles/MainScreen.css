@@ -466,6 +466,111 @@
   box-shadow: 0 12px 28px rgba(255, 122, 24, 0.10);
 }
 
+.damage-assessment-coverage-list {
+  display: grid;
+  gap: 12px;
+}
+
+.damage-assessment-coverage-card {
+  width: 100%;
+  padding: 14px;
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+  background: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+}
+
+.damage-assessment-coverage-card:hover,
+.damage-assessment-coverage-card.selected {
+  border-color: #ff6600;
+  background: #fff8f1;
+  box-shadow: 0 12px 26px rgba(255, 102, 0, 0.10);
+}
+
+.damage-assessment-coverage-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.damage-assessment-vehicle-no {
+  color: #111827;
+  font-weight: 700;
+}
+
+.damage-assessment-vehicle-model {
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.damage-assessment-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.damage-assessment-detail-item {
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #f0e4da;
+  border-radius: 14px;
+  background: #fffdfb;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.damage-assessment-detail-item:hover {
+  border-color: #f4b47b;
+  box-shadow: 0 10px 20px rgba(234, 88, 12, 0.08);
+  transform: translateY(-1px);
+}
+
+.damage-assessment-detail-item.featured {
+  background: linear-gradient(135deg, #fff7ed 0%, #fffbf5 100%);
+  border-color: #fed7aa;
+}
+
+.damage-assessment-detail-label {
+  display: block;
+  margin-bottom: 6px;
+  color: #7c5a46;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.damage-assessment-detail-value {
+  display: block;
+  color: #1f2937;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.damage-assessment-upload-panel {
+  margin-top: 20px;
+}
+
+.damage-assessment-note-list {
+  margin: 0;
+  padding-left: 20px;
+  color: #475569;
+}
+
+@media (max-width: 560px) {
+  .damage-assessment-detail-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .portal-dashboard-toolbar {
   display: flex;
   flex-wrap: wrap;

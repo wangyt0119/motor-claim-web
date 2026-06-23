@@ -6,6 +6,7 @@ import {
   LineChartOutlined, 
   BellOutlined, 
   CustomerServiceOutlined,
+  RobotOutlined,
   LogoutOutlined,
   UserOutlined,
   ToolOutlined,
@@ -17,6 +18,7 @@ import CustomerNotificationScreen from './CustomerNotificationScreen';
 import PanelWorkshopListScreen from './PanelWorkshopListScreen';
 import CustomerDashboardScreen from './CustomerDashboardScreen';
 import ProfileScreen from './ProfileScreen';
+import DamageAssessmentScreen from './DamageAssessmentScreen';
 import '../styles/MainScreen.css';
 import { getMyClaims } from '../services/claimService';
 import { getMyCoverages } from '../services/coverageService';
@@ -36,6 +38,10 @@ function MainScreen({ onSignOut, currentUser }) {
   useEffect(() => {
     const routeKey = location.pathname.split('/')[2] || 'dashboard';
     setSelectedKey(routeKey);
+
+    if (routeKey === 'track') {
+      refreshClaims();
+    }
   }, [location.pathname]);
 
   const refreshClaims = async () => {
@@ -76,8 +82,9 @@ function MainScreen({ onSignOut, currentUser }) {
     navigate(getPortalPath(PORTAL_KEYS.CUSTOMER, `/${key}`));
   };
 
-  const addNewClaim = (newClaim) => {
+  const addNewClaim = async (newClaim) => {
     setClaims((previousClaims) => [newClaim, ...previousClaims]);
+    await refreshClaims();
     setSelectedKey('track');
     navigate(getPortalPath(PORTAL_KEYS.CUSTOMER, '/track'));
   };
@@ -152,6 +159,14 @@ function MainScreen({ onSignOut, currentUser }) {
             >
               <span>Track Claims</span>
             </Menu.Item>
+
+            <Menu.Item
+              key="damage-assessment"
+              icon={<RobotOutlined />}
+              onClick={() => handleMenuClick('damage-assessment')}
+            >
+              <span>AI Damage Assessment</span>
+            </Menu.Item>
             
             <Menu.Item 
               key="notifications" 
@@ -225,6 +240,7 @@ function MainScreen({ onSignOut, currentUser }) {
             }
           />
           <Route path="submit" element={<SubmitClaimScreen onSubmit={addNewClaim} />} />
+          <Route path="damage-assessment" element={<DamageAssessmentScreen />} />
           <Route path="track" element={<CustomerClaimTracker claims={claims} coverages={coverages} onClaimsChanged={refreshClaims} />} />
           <Route
             path="notifications"
@@ -251,7 +267,5 @@ function MainScreen({ onSignOut, currentUser }) {
 }
 
 export default MainScreen;
-
-
 
 

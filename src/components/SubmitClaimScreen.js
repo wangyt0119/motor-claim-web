@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   Form, Input, Button, DatePicker,
   Upload, message, Row, Col, Card, Typography, Modal,
-  Divider, Alert, Checkbox, Spin, Empty
+  Divider, Alert, Checkbox, Spin, Empty, Tag, Table, Space
 } from 'antd';
 import { 
   CalendarOutlined, 
+  CarOutlined,
   UploadOutlined, 
   ArrowLeftOutlined, 
   ArrowRightOutlined, 
@@ -14,32 +15,115 @@ import {
   FileTextOutlined,
   FolderOutlined,
   EyeOutlined,
-  CloseOutlined
+  CloseOutlined,
+  ToolOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 import { getMyCoverages } from '../services/coverageService';
-import { createClaim } from '../services/claimService';
+import { createClaim, getMyClaims } from '../services/claimService';
 import { uploadFileToCloudinary } from '../services/cloudinaryService';
+import { getActiveClaimForCoverage } from '../utils/claimEligibility';
 
 const { Title, Text } = Typography;
 
-function SubmitClaimScreen({ onSubmit }) {
+const MOTOR_CLAIM_TYPES = {
+  VehicleDamages: 1,
+  Windscreen: 3,
+};
+
+const motorClaimTypeOptions = [
+  {
+    value: MOTOR_CLAIM_TYPES.VehicleDamages,
+    title: 'Vehicle Damage',
+    description: 'For accident, collision, or body damage claims that need full vehicle damage evidence.',
+    icon: <CarOutlined />,
+  },
+  {
+    value: MOTOR_CLAIM_TYPES.Windscreen,
+    title: 'Windscreen',
+    description: 'For cracked or broken windscreen claims with one clear windscreen damage photo.',
+    icon: <ToolOutlined />,
+  },
+];
+
+const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefined, {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+})}`;
+
+ function SubmitClaimScreen({ onSubmit }) {
   const [form] = Form.useForm();
+  const smartFilesInputRef = useRef(null);
+  const smartFolderInputRef = useRef(null);
   const [currentStep, setCurrentStep] = useState(0);
   const [termsAgreed, setTermsAgreed] = useState(false);
   const [documentFiles, setDocumentFiles] = useState({});
+  const [smartSuggestions, setSmartSuggestions] = useState([]);
+  const [smartSelectedFiles, setSmartSelectedFiles] = useState([]);
+  const [selectedMotorClaimType, setSelectedMotorClaimType] = useState(MOTOR_CLAIM_TYPES.VehicleDamages);
   const [selectedCoverage, setSelectedCoverage] = useState(null);
   const [incidentDateString, setIncidentDateString] = useState('');
   const [incidentDescription, setIncidentDescription] = useState('');
   const [coverageOptions, setCoverageOptions] = useState([]);
+  const [existingClaims, setExistingClaims] = useState([]);
   const [coverageLoading, setCoverageLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [successModalOpen, setSuccessModalOpen] = useState(false);
+  const [smartApplySuccess, setSmartApplySuccess] = useState(null);
   const [submittedClaimData, setSubmittedClaimData] = useState(null);
   const [samplePreview, setSamplePreview] = useState(null);
+  const [uploadedFilePreview, setUploadedFilePreview] = useState(null);
 
   const MAX_TOTAL_UPLOAD_BYTES = 20 * 1024 * 1024;
+  const ACCEPTED_DOCUMENT_EXTENSIONS = new Set(['jpg', 'jpeg', 'png', 'pdf', 'heic']);
+
+  const smartDocumentRules = {
+    policeReport: {
+      keywords: ['policereport', 'police_report', 'police-report', 'police report', 'report'],
+      reason: 'Matched police report keywords',
+    },
+    idFront: {
+      keywords: ['icfront', 'ic_front', 'ic-front', 'nricfront', 'nric_front', 'nric-front', 'identityfront', 'identity_front', 'identity-front'],
+      reason: 'Matched front identity document keywords',
+    },
+    idBack: {
+      keywords: ['icback', 'ic_back', 'ic-back', 'nricback', 'nric_back', 'nric-back', 'identityback', 'identity_back', 'identity-back'],
+      reason: 'Matched back identity document keywords',
+    },
+    licenseFront: {
+      keywords: ['licensefront', 'license_front', 'license-front', 'drivinglicensefront', 'driving_license_front', 'driving-license-front'],
+      reason: 'Matched front driving license keywords',
+    },
+    licenseBack: {
+      keywords: ['licenseback', 'license_back', 'license-back', 'drivinglicenseback', 'driving_license_back', 'driving-license-back'],
+      reason: 'Matched back driving license keywords',
+    },
+    registrationCard: {
+      keywords: ['ownership', 'vehicleownership', 'vehicle_ownership', 'vehicle-ownership', 'voc', 'grant', 'registration', 'registration-card', 'registration_card'],
+      reason: 'Matched vehicle ownership keywords',
+    },
+    damageFrontLeft: {
+      keywords: ['frontleft', 'front_left', 'front-left', 'damagefrontleft', 'damage_front_left', 'damage-front-left'],
+      reason: 'Matched front-left damage keywords',
+    },
+    damageFrontRight: {
+      keywords: ['frontright', 'front_right', 'front-right', 'damagefrontright', 'damage_front_right', 'damage-front-right'],
+      reason: 'Matched front-right damage keywords',
+    },
+    damageRearLeft: {
+      keywords: ['rearleft', 'rear_left', 'rear-left', 'damagerearleft', 'damage_rear_left', 'damage-rear-left'],
+      reason: 'Matched rear-left damage keywords',
+    },
+    damageRearRight: {
+      keywords: ['rearright', 'rear_right', 'rear-right', 'damagerearright', 'damage_rear_right', 'damage-rear-right'],
+      reason: 'Matched rear-right damage keywords',
+    },
+    windscreenDamage: {
+      keywords: ['windscreen', 'wind_screen', 'wind-screen', 'windshield', 'wind_shield', 'wind-shield', 'glass', 'crack', 'crackedglass', 'windscreendamage', 'windscreen_damage'],
+      reason: 'Matched windscreen damage keywords',
+    },
+  };
 
   const vehicleDamageDocumentSections = [
       {
@@ -144,13 +228,82 @@ function SubmitClaimScreen({ onSubmit }) {
       }
   ];
 
+  const windscreenDocumentSections = [
+    {
+      title: 'Core Documents',
+      documents: [
+        {
+          key: 'registrationCard',
+          label: 'Registration card / Vehicle ownership certificate',
+          sample: {
+            title: 'SAMPLE REGISTRATION CARD',
+            imagePath: '/assets/sample-registration-card.jpg',
+          },
+        },
+      ],
+    },
+    {
+      title: 'NRIC/Passport/Army/Police ID',
+      documents: [
+        {
+          key: 'idFront',
+          label: 'NRIC/Passport/Army/Police ID (Front)',
+          sample: {
+            title: 'SAMPLE NRIC',
+            imagePath: '/assets/sample-ic.jpg',
+          },
+        },
+        {
+          key: 'idBack',
+          label: 'NRIC/Passport/Army/Police ID (Back)',
+          sample: {
+            title: 'SAMPLE NRIC',
+            imagePath: '/assets/sample-ic.jpg',
+          },
+        },
+      ],
+    },
+    {
+      title: 'Driving License',
+      documents: [
+        {
+          key: 'licenseFront',
+          label: 'Driving license (Front)',
+          sample: {
+            title: 'SAMPLE DRIVING LICENSE',
+            imagePath: '/assets/sample-driving-license.jpg',
+          },
+        },
+        {
+          key: 'licenseBack',
+          label: 'Driving License (Back)',
+          sample: {
+            title: 'SAMPLE DRIVING LICENSE',
+            imagePath: '/assets/sample-driving-license.jpg',
+          },
+        },
+      ],
+    },
+    {
+      title: 'Windscreen Damage',
+      documents: [
+        {
+          key: 'windscreenDamage',
+          label: 'Windscreen damage photo',
+          sample: null,
+        },
+      ],
+    },
+  ];
+
   useEffect(() => {
     const loadCoverages = async () => {
       setCoverageLoading(true);
 
       try {
-        const coverages = await getMyCoverages();
+        const [coverages, claims] = await Promise.all([getMyCoverages(), getMyClaims()]);
         setCoverageOptions(coverages);
+        setExistingClaims(claims);
       } catch (error) {
         message.error(
           error?.response?.data?.message ||
@@ -165,8 +318,36 @@ function SubmitClaimScreen({ onSubmit }) {
     loadCoverages();
   }, []);
 
+  const getDocumentSections = () => (
+    selectedMotorClaimType === MOTOR_CLAIM_TYPES.Windscreen
+      ? windscreenDocumentSections
+      : vehicleDamageDocumentSections
+  );
+
+  const getSelectedClaimTypeOption = () => (
+    motorClaimTypeOptions.find((option) => option.value === selectedMotorClaimType) || motorClaimTypeOptions[0]
+  );
+
   const getRequiredDocuments = () => {
-    return vehicleDamageDocumentSections.flatMap((section) => section.documents);
+    return getDocumentSections().flatMap((section) => section.documents);
+  };
+
+  const getWindscreenRemainingAmount = (coverage) => Number(coverage?.windscreenRemainingCoverageAmount ?? 0);
+
+  const isWindscreenCoverageUnavailable = (coverage) => (
+    selectedMotorClaimType === MOTOR_CLAIM_TYPES.Windscreen && getWindscreenRemainingAmount(coverage) <= 0
+  );
+
+  const handleMotorClaimTypeChange = (claimType) => {
+    if (claimType === selectedMotorClaimType) {
+      return;
+    }
+
+    setSelectedMotorClaimType(claimType);
+    setSelectedCoverage(null);
+    form.setFieldsValue({ selectedCoverage: null });
+    setDocumentFiles({});
+    clearSmartSuggestions();
   };
 
   const getTotalUploadSize = (filesMap) => {
@@ -189,6 +370,273 @@ function SubmitClaimScreen({ onSubmit }) {
 
     setDocumentFiles(nextFiles);
   };
+
+  const handleSmartReplaceUpload = (documentKey) => ({ fileList }) => {
+    const normalizedList = fileList.slice(-1);
+    if (!normalizedList.length) {
+      return;
+    }
+
+    const nextFiles = { ...documentFiles, [documentKey]: normalizedList };
+    const totalSize = getTotalUploadSize(nextFiles);
+
+    if (totalSize > MAX_TOTAL_UPLOAD_BYTES) {
+      message.error('Total upload size cannot exceed 20MB');
+      return;
+    }
+
+    setDocumentFiles(nextFiles);
+    setSmartSuggestions((currentSuggestions) =>
+      currentSuggestions.map((suggestion) =>
+        suggestion.documentKey === documentKey
+          ? {
+              ...suggestion,
+              file: normalizedList[0],
+              confidence: 'Manual',
+              reason: 'Manually selected for this document',
+              accepted: true,
+              rejected: false,
+            }
+          : suggestion
+      )
+    );
+  };
+
+  const handleSmartFilesSelected = (event) => {
+    const selectedFiles = Array.from(event.target.files || []);
+    event.target.value = '';
+    buildSmartSuggestions(selectedFiles);
+  };
+
+  const buildSmartSuggestions = (files) => {
+    if (!files.length) {
+      return;
+    }
+
+    const validFiles = files.filter((file) => isAcceptedDocumentFile(file));
+    const rejectedCount = files.length - validFiles.length;
+
+    if (!validFiles.length) {
+      message.error('No supported files found. Please choose JPG, PNG, PDF, or HEIC files.');
+      return;
+    }
+
+    const usedFileKeys = new Set();
+    const suggestions = getRequiredDocuments().map((doc) => {
+      const suggestion = findBestFileSuggestion(doc, validFiles, usedFileKeys);
+
+      if (suggestion?.file) {
+        usedFileKeys.add(getSmartFileKey(suggestion.file));
+      }
+
+      return {
+        documentKey: doc.key,
+        documentLabel: doc.label,
+        file: suggestion?.file || null,
+        confidence: suggestion?.confidence || 'Missing',
+        reason: suggestion?.reason || 'No filename keyword matched this document',
+        accepted: Boolean(suggestion?.file),
+        rejected: false,
+      };
+    });
+
+    setSmartSelectedFiles(validFiles);
+    setSmartSuggestions(suggestions);
+
+    const matchedCount = suggestions.filter((suggestion) => suggestion.file).length;
+    message.success(`Scanned ${validFiles.length} file(s). Suggested ${matchedCount}/${suggestions.length} document match(es).`);
+
+    if (rejectedCount > 0) {
+      message.warning(`${rejectedCount} unsupported file(s) were ignored.`);
+    }
+  };
+
+  const acceptSmartSuggestion = (documentKey) => {
+    const suggestion = smartSuggestions.find((item) => item.documentKey === documentKey);
+    if (!suggestion?.file) {
+      message.warning('No suggested file is available for this document.');
+      return;
+    }
+
+    const nextFiles = { ...documentFiles, [documentKey]: [suggestion.file] };
+    const totalSize = getTotalUploadSize(nextFiles);
+
+    if (totalSize > MAX_TOTAL_UPLOAD_BYTES) {
+      message.error('Total upload size cannot exceed 20MB');
+      return;
+    }
+
+    setDocumentFiles(nextFiles);
+    setSmartSuggestions((currentSuggestions) =>
+      currentSuggestions.map((item) =>
+        item.documentKey === documentKey
+          ? { ...item, accepted: true, rejected: false }
+          : item
+      )
+    );
+  };
+
+  const rejectSmartSuggestion = (documentKey) => {
+    setSmartSuggestions((currentSuggestions) =>
+      currentSuggestions.map((item) =>
+        item.documentKey === documentKey
+          ? { ...item, accepted: false, rejected: true }
+          : item
+      )
+    );
+  };
+
+  const applyAcceptedSmartSuggestions = () => {
+    const nextFiles = { ...documentFiles };
+    let appliedCount = 0;
+
+    smartSuggestions.forEach((suggestion) => {
+      if (suggestion.accepted && !suggestion.rejected && suggestion.file) {
+        nextFiles[suggestion.documentKey] = [suggestion.file];
+        appliedCount += 1;
+      }
+    });
+
+    const totalSize = getTotalUploadSize(nextFiles);
+
+    if (totalSize > MAX_TOTAL_UPLOAD_BYTES) {
+      message.error('Total upload size cannot exceed 20MB. Reject some suggestions or use smaller files.');
+      return;
+    }
+
+    setDocumentFiles(nextFiles);
+    clearSmartSuggestions();
+    setSmartApplySuccess({
+      appliedCount,
+    });
+  };
+
+  const clearSmartSuggestions = () => {
+    setSmartSelectedFiles([]);
+    setSmartSuggestions([]);
+  };
+
+  const isAcceptedDocumentFile = (file) => {
+    const extension = getFileExtension(file.name);
+    return ACCEPTED_DOCUMENT_EXTENSIONS.has(extension);
+  };
+
+  const findBestFileSuggestion = (doc, files, usedFileKeys) => {
+    const rule = smartDocumentRules[doc.key];
+
+    if (!rule) {
+      return null;
+    }
+
+    const candidates = files
+      .filter((file) => !usedFileKeys.has(getSmartFileKey(file)))
+      .map((file) => {
+        const score = getFilenameMatchScore(file.name, rule.keywords);
+        return {
+          file: createUploadFileFromRawFile(file),
+          rawFile: file,
+          score,
+        };
+      })
+      .filter((candidate) => candidate.score > 0)
+      .sort((left, right) => right.score - left.score);
+
+    const bestCandidate = candidates[0];
+
+    if (!bestCandidate) {
+      return null;
+    }
+
+    return {
+      file: bestCandidate.file,
+      confidence: bestCandidate.score >= 95 ? 'High' : bestCandidate.score >= 70 ? 'Medium' : 'Low',
+      reason: `${rule.reason}: ${bestCandidate.rawFile.name}`,
+    };
+  };
+
+  const getFilenameMatchScore = (fileName, keywords) => {
+    const normalizedName = normalizeFileNameForMatching(fileName);
+
+    return keywords.reduce((bestScore, keyword) => {
+      const normalizedKeyword = normalizeFileNameForMatching(keyword);
+
+      if (!normalizedKeyword || !normalizedName.includes(normalizedKeyword)) {
+        return bestScore;
+      }
+
+      const exactNameMatch = normalizedName === normalizedKeyword;
+      const strongKeyword = normalizedKeyword.length >= 8;
+      const score = exactNameMatch ? 100 : strongKeyword ? 90 : 62;
+
+      return Math.max(bestScore, score);
+    }, 0);
+  };
+
+  const createUploadFileFromRawFile = (file) => ({
+    uid: `${file.name}-${file.size}-${file.lastModified}`,
+    name: file.name,
+    size: file.size,
+    type: file.type,
+    status: 'done',
+    originFileObj: file,
+  });
+
+  const getSmartFileKey = (file) => {
+    const rawFile = file?.originFileObj || file;
+    return `${rawFile?.name || ''}-${rawFile?.size || 0}-${rawFile?.lastModified || 0}`;
+  };
+
+  const normalizeFileNameForMatching = (value) => String(value || '')
+    .toLowerCase()
+    .replace(/\.[^.]+$/, '')
+    .replace(/[^a-z0-9]+/g, '');
+
+  const getFileExtension = (fileName) => {
+    const segments = String(fileName || '').split('.');
+    return segments.length > 1 ? segments[segments.length - 1].toLowerCase() : '';
+  };
+
+  const getSmartConfidenceColor = (confidence) => {
+    if (confidence === 'High') return 'green';
+    if (confidence === 'Medium') return 'blue';
+    if (confidence === 'Low') return 'gold';
+    if (confidence === 'Manual') return 'purple';
+    return 'default';
+  };
+
+  const openUploadedFilePreview = (uploadFile) => {
+    const rawFile = uploadFile?.originFileObj || uploadFile;
+
+    if (!rawFile) {
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(rawFile);
+    setUploadedFilePreview({
+      name: uploadFile.name || rawFile.name || 'Uploaded file',
+      type: rawFile.type || uploadFile.type || '',
+      extension: getFileExtension(uploadFile.name || rawFile.name),
+      url: previewUrl,
+    });
+  };
+
+  const closeUploadedFilePreview = () => {
+    if (uploadedFilePreview?.url) {
+      URL.revokeObjectURL(uploadedFilePreview.url);
+    }
+
+    setUploadedFilePreview(null);
+  };
+
+  const isImagePreview = (preview) => (
+    String(preview?.type || '').startsWith('image/') ||
+    ['jpg', 'jpeg', 'png', 'heic'].includes(String(preview?.extension || '').toLowerCase())
+  );
+
+  const isPdfPreview = (preview) => (
+    String(preview?.type || '').toLowerCase() === 'application/pdf' ||
+    String(preview?.extension || '').toLowerCase() === 'pdf'
+  );
 
   const getDocumentPayload = async () => {
     const uploadedEntries = Object.entries(documentFiles);
@@ -230,6 +678,14 @@ function SubmitClaimScreen({ onSubmit }) {
             message.error('Please select one coverage');
             return false;
           }
+          if (getActiveClaimForCoverage(existingClaims, selectedCoverage)) {
+            message.error('This coverage already has an active claim. Wait until it is approved or rejected before submitting another claim.');
+            return false;
+          }
+          if (isWindscreenCoverageUnavailable(coverageOptions.find((coverage) => coverage.coverageId === selectedCoverage))) {
+            message.error('This coverage has no windscreen balance available.');
+            return false;
+          }
           return true;
         case 2: {
           await form.validateFields(['incidentDescription']);
@@ -257,6 +713,16 @@ function SubmitClaimScreen({ onSubmit }) {
 
           if (!selectedCoverage) {
             message.error('Please select one coverage');
+            return false;
+          }
+
+          if (getActiveClaimForCoverage(existingClaims, selectedCoverage)) {
+            message.error('This coverage already has an active claim. Wait until it is approved or rejected before submitting another claim.');
+            return false;
+          }
+
+          if (isWindscreenCoverageUnavailable(coverageOptions.find((coverage) => coverage.coverageId === selectedCoverage))) {
+            message.error('This coverage has no windscreen balance available.');
             return false;
           }
 
@@ -324,6 +790,16 @@ function SubmitClaimScreen({ onSubmit }) {
       await form.validateFields();
       setSubmitting(true);
 
+      const latestClaims = await getMyClaims();
+      setExistingClaims(latestClaims);
+
+      const activeClaim = getActiveClaimForCoverage(latestClaims, selectedCoverage);
+      if (activeClaim) {
+        throw new Error(
+          `This coverage already has active claim ${activeClaim.id || ''} (${activeClaim.status || 'in progress'}). Wait until it is approved or rejected before submitting another claim.`
+        );
+      }
+
       const documentPayload = await getDocumentPayload();
       const incidentDateIso = incidentDateString ? `${incidentDateString}T00:00:00` : null;
 
@@ -335,28 +811,44 @@ function SubmitClaimScreen({ onSubmit }) {
         coverageId: selectedCoverage,
         incidentDate: incidentDateIso,
         allClaimType: 1,
-        motorClaimType: 1,
+        motorClaimType: selectedMotorClaimType,
         incidentDescription: incidentDescription.trim(),
-        policeReportDocument: documentPayload.policeReport ?? null,
+        policeReportDocument:
+          selectedMotorClaimType === MOTOR_CLAIM_TYPES.VehicleDamages
+            ? documentPayload.policeReport ?? null
+            : null,
         vehicleOwnershipCertificateDocument: documentPayload.registrationCard ?? null,
         identityDocumentFront: documentPayload.idFront ?? null,
         identityDocumentBack: documentPayload.idBack ?? null,
         drivingLicenseFront: documentPayload.licenseFront ?? null,
         drivingLicenseBack: documentPayload.licenseBack ?? null,
-        vehicleDamageFrontLeftDocument: documentPayload.damageFrontLeft ?? null,
-        vehicleDamageFrontRightDocument: documentPayload.damageFrontRight ?? null,
-        vehicleDamageRearLeftDocument: documentPayload.damageRearLeft ?? null,
-        vehicleDamageRearRightDocument: documentPayload.damageRearRight ?? null,
+        vehicleDamageFrontLeftDocument:
+          selectedMotorClaimType === MOTOR_CLAIM_TYPES.Windscreen
+            ? documentPayload.windscreenDamage ?? null
+            : documentPayload.damageFrontLeft ?? null,
+        vehicleDamageFrontRightDocument:
+          selectedMotorClaimType === MOTOR_CLAIM_TYPES.VehicleDamages
+            ? documentPayload.damageFrontRight ?? null
+            : null,
+        vehicleDamageRearLeftDocument:
+          selectedMotorClaimType === MOTOR_CLAIM_TYPES.VehicleDamages
+            ? documentPayload.damageRearLeft ?? null
+            : null,
+        vehicleDamageRearRightDocument:
+          selectedMotorClaimType === MOTOR_CLAIM_TYPES.VehicleDamages
+            ? documentPayload.damageRearRight ?? null
+            : null,
       };
 
       console.log('Create claim payload', claimPayload);
 
       const createdClaim = await createClaim(claimPayload);
       console.log('Create claim response', createdClaim);
+      setExistingClaims((claims) => [createdClaim, ...claims]);
 
       setSubmittedClaimData({
         ...createdClaim,
-        type: 'Vehicle Damages',
+        type: getSelectedClaimTypeOption().title,
         vehicleRegistration:
           coverageOptions.find((coverage) => coverage.coverageId === selectedCoverage)?.vehicleNo ||
           createdClaim.vehicleRegistration,
@@ -367,6 +859,9 @@ function SubmitClaimScreen({ onSubmit }) {
       setCurrentStep(0);
       setTermsAgreed(false);
       setDocumentFiles({});
+      setSmartSelectedFiles([]);
+      setSmartSuggestions([]);
+      setSelectedMotorClaimType(MOTOR_CLAIM_TYPES.VehicleDamages);
       setSelectedCoverage(null);
       setIncidentDateString('');
       setIncidentDescription('');
@@ -525,6 +1020,60 @@ function SubmitClaimScreen({ onSubmit }) {
             </Col>
             
           </Row>
+
+          {incidentDateString ? (
+            <>
+              <Divider />
+              <Title level={4}>What do you want to claim?</Title>
+              <Text type="secondary">
+                Choose the motor claim type first so the portal can request the correct documents.
+              </Text>
+              <Row gutter={[16, 16]} style={{ marginTop: 12 }}>
+                {motorClaimTypeOptions.map((option) => {
+                  const isSelected = selectedMotorClaimType === option.value;
+                  return (
+                    <Col xs={24} md={12} key={option.value}>
+                      <Card
+                        hoverable
+                        onClick={() => handleMotorClaimTypeChange(option.value)}
+                        style={{
+                          height: '100%',
+                          borderRadius: 14,
+                          border: isSelected ? '2px solid #FF6600' : '1px solid #e5e7eb',
+                          background: isSelected ? '#fff7ed' : '#ffffff',
+                          boxShadow: isSelected ? '0 10px 24px rgba(255, 102, 0, 0.12)' : '0 2px 8px rgba(0,0,0,0.04)',
+                        }}
+                        styles={{ body: { padding: 16 } }}
+                      >
+                        <Space align="start" size={12}>
+                          <span
+                            style={{
+                              width: 42,
+                              height: 42,
+                              borderRadius: 12,
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              background: isSelected ? '#ffedd5' : '#f8fafc',
+                              color: '#c2410c',
+                              fontSize: 20,
+                            }}
+                          >
+                            {option.icon}
+                          </span>
+                          <Space direction="vertical" size={4}>
+                            <Text strong>{option.title}</Text>
+                            <Text type="secondary">{option.description}</Text>
+                            {isSelected ? <Tag color="orange">Selected</Tag> : null}
+                          </Space>
+                        </Space>
+                      </Card>
+                    </Col>
+                  );
+                })}
+              </Row>
+            </>
+          ) : null}
         
         </Card>
       </div>
@@ -534,16 +1083,29 @@ function SubmitClaimScreen({ onSubmit }) {
   // Build select coverage step
   const buildSelectCoverageStep = () => {
     const selectCoverage = (coverageId) => {
+      const coverage = coverageOptions.find((item) => item.coverageId === coverageId);
+      const activeClaim = getActiveClaimForCoverage(existingClaims, coverageId);
+      if (activeClaim) {
+        message.warning('This coverage already has an active claim. Wait until it is approved or rejected before submitting another claim.');
+        return;
+      }
+
+      if (isWindscreenCoverageUnavailable(coverage)) {
+        message.warning('This coverage has no windscreen balance available.');
+        return;
+      }
+
       setSelectedCoverage(coverageId);
       form.setFieldsValue({ selectedCoverage: coverageId });
     };
 
-    const coverageCardStyle = (isSelected) => ({
+    const coverageCardStyle = (isSelected, isLocked) => ({
       marginTop: 12,
       borderRadius: 16,
       border: isSelected ? '2px solid #FF6600' : '1px solid #e8e8e8',
       boxShadow: isSelected ? '0 4px 12px rgba(255,102,0,0.12)' : '0 2px 8px rgba(0,0,0,0.05)',
-      cursor: 'pointer'
+      cursor: isLocked ? 'not-allowed' : 'pointer',
+      opacity: isLocked ? 0.72 : 1
     });
 
     return (
@@ -573,10 +1135,13 @@ function SubmitClaimScreen({ onSubmit }) {
           <Row gutter={[16, 16]}>
             {coverageOptions.map((coverage, index) => {
               const isSelected = selectedCoverage === coverage.coverageId;
+              const activeClaim = getActiveClaimForCoverage(existingClaims, coverage.coverageId);
+              const isWindscreenUnavailable = isWindscreenCoverageUnavailable(coverage);
+              const isLocked = Boolean(activeClaim) || isWindscreenUnavailable;
               return (
                 <Col xs={24} lg={12} key={coverage.coverageId}>
                   <Card
-                    style={coverageCardStyle(isSelected)}
+                    style={coverageCardStyle(isSelected, isLocked)}
                     styles={{ body: { padding: 16 } }}
                     onClick={() => selectCoverage(coverage.coverageId)}
                   >
@@ -587,7 +1152,13 @@ function SubmitClaimScreen({ onSubmit }) {
                           {coverage.vehicleNo}
                         </Title>
                       </div>
-                      <Checkbox checked={isSelected} />
+                      {activeClaim ? (
+                        <Tag color="warning">Active claim in progress</Tag>
+                      ) : isWindscreenUnavailable ? (
+                        <Tag color="default">No windscreen balance</Tag>
+                      ) : (
+                        <Checkbox checked={isSelected} />
+                      )}
                     </div>
 
                     <Row gutter={[16, 12]}>
@@ -610,7 +1181,47 @@ function SubmitClaimScreen({ onSubmit }) {
                         <Text type="secondary">Expiry Date</Text>
                         <div style={{ fontWeight: 600 }}>{moment(coverage.expiryDate).format('DD MMM YYYY')}</div>
                       </Col>
+
+                      {selectedMotorClaimType === MOTOR_CLAIM_TYPES.Windscreen ? (
+                        <>
+                          <Col xs={24} md={12}>
+                            <Text type="secondary">Windscreen Balance</Text>
+                            <div style={{ fontWeight: 700, color: getWindscreenRemainingAmount(coverage) > 0 ? '#237804' : '#8c8c8c' }}>
+                              {formatMoney(coverage.windscreenRemainingCoverageAmount)}
+                            </div>
+                          </Col>
+
+                          <Col xs={24} md={12}>
+                            <Text type="secondary">Windscreen Limit</Text>
+                            <div style={{ fontWeight: 600 }}>
+                              {formatMoney(coverage.windscreenCoverageLimitAmount)}
+                            </div>
+                          </Col>
+                        </>
+                      ) : null}
                     </Row>
+
+                    {activeClaim ? (
+                      <Alert
+                        style={{ marginTop: 14 }}
+                        type="warning"
+                        showIcon
+                        message={
+                          activeClaim.id
+                            ? `Unavailable while claim ${activeClaim.id} is ${activeClaim.status || 'in progress'}`
+                            : `Unavailable while the current claim is ${activeClaim.status || 'in progress'}`
+                        }
+                        description="You can use this coverage again after the current claim is approved or rejected."
+                      />
+                    ) : isWindscreenUnavailable ? (
+                      <Alert
+                        style={{ marginTop: 14 }}
+                        type="info"
+                        showIcon
+                        message="No windscreen balance available"
+                        description="Choose another coverage or submit a vehicle damage claim instead."
+                      />
+                    ) : null}
                   </Card>
                 </Col>
               );
@@ -625,11 +1236,95 @@ function SubmitClaimScreen({ onSubmit }) {
 
   // Build documents step
   const buildDocumentsStep = () => {
-    const documentSections = vehicleDamageDocumentSections;
+    const documentSections = getDocumentSections();
     const requiredDocs = getRequiredDocuments();
     const missingDocs = getMissingRequiredDocuments();
     const uploadedCount = requiredDocs.filter((doc) => (documentFiles[doc.key] || []).length > 0).length;
     const totalSizeMB = (getTotalUploadSize(documentFiles) / (1024 * 1024)).toFixed(2);
+    const smartMatchedCount = smartSuggestions.filter((suggestion) => suggestion.file).length;
+    const smartAcceptedCount = smartSuggestions.filter((suggestion) => suggestion.accepted && !suggestion.rejected && suggestion.file).length;
+
+    const smartSuggestionColumns = [
+      {
+        title: 'Document Required',
+        dataIndex: 'documentLabel',
+        key: 'documentLabel',
+        width: 250,
+        render: (value) => <Text strong>{value}</Text>,
+      },
+      {
+        title: 'Suggested File',
+        key: 'file',
+        render: (_, suggestion) => suggestion.file ? (
+          <Text style={{ wordBreak: 'break-word' }}>{suggestion.file.name}</Text>
+        ) : (
+          <Text type="danger">No suggestion</Text>
+        ),
+      },
+      {
+        title: 'Confidence / Reason',
+        key: 'confidence',
+        width: 260,
+        render: (_, suggestion) => (
+          <div>
+            <Tag color={getSmartConfidenceColor(suggestion.confidence)}>{suggestion.confidence}</Tag>
+            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
+              {suggestion.reason}
+            </Text>
+          </div>
+        ),
+      },
+      {
+        title: 'Use',
+        key: 'use',
+        width: 90,
+        render: (_, suggestion) => (
+          <Checkbox
+            disabled={!suggestion.file || suggestion.rejected}
+            checked={Boolean(suggestion.accepted && !suggestion.rejected)}
+            onChange={(event) => {
+              if (event.target.checked) {
+                acceptSmartSuggestion(suggestion.documentKey);
+              } else {
+                setSmartSuggestions((currentSuggestions) =>
+                  currentSuggestions.map((item) =>
+                    item.documentKey === suggestion.documentKey
+                      ? { ...item, accepted: false }
+                      : item
+                  )
+                );
+              }
+            }}
+          />
+        ),
+      },
+      {
+        title: 'Action',
+        key: 'action',
+        width: 190,
+        render: (_, suggestion) => (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {suggestion.file && !suggestion.rejected ? (
+              <Button size="small" onClick={() => rejectSmartSuggestion(suggestion.documentKey)}>
+                Reject
+              </Button>
+            ) : null}
+            <Upload
+              fileList={documentFiles[suggestion.documentKey] || []}
+              onChange={handleSmartReplaceUpload(suggestion.documentKey)}
+              beforeUpload={() => false}
+              maxCount={1}
+              accept=".jpg,.jpeg,.png,.pdf,.heic"
+              showUploadList={false}
+            >
+              <Button size="small" type="link">
+                Replace
+              </Button>
+            </Upload>
+          </div>
+        ),
+      },
+    ];
 
     return (
       <div>
@@ -657,7 +1352,7 @@ function SubmitClaimScreen({ onSubmit }) {
             />
           </Form.Item>
 
-          <Title level={4} style={{ marginTop: 24 }}>Upload Document</Title>
+          <Title level={4} style={{ marginTop: 24 }}>Upload {getSelectedClaimTypeOption().title} Documents</Title>
           <Text type="secondary">
             Upload a copy or image of the following documents.
             Files will be uploaded securely to cloud storage. Total size must not exceed 20MB and accepted formats are JPG, PNG, PDF and HEIC.
@@ -676,6 +1371,78 @@ function SubmitClaimScreen({ onSubmit }) {
                 : 'All required supporting information is complete.'
             }
           />
+
+          <Card
+            size="small"
+            style={{
+              marginBottom: 18,
+              borderRadius: 12,
+              border: '1px solid #f3d2b7',
+              background: '#fffaf5',
+            }}
+          >
+            <input
+              ref={smartFilesInputRef}
+              type="file"
+              multiple
+              accept=".jpg,.jpeg,.png,.pdf,.heic"
+              onChange={handleSmartFilesSelected}
+              style={{ display: 'none' }}
+            />
+            <input
+              ref={smartFolderInputRef}
+              type="file"
+              multiple
+              webkitdirectory="true"
+              directory="true"
+              accept=".jpg,.jpeg,.png,.pdf,.heic"
+              onChange={handleSmartFilesSelected}
+              style={{ display: 'none' }}
+            />
+
+            <div style={{ display: 'flex', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', alignItems: 'flex-start' }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <Title level={5} style={{ margin: 0 }}>Smart Document Upload Suggestions</Title>
+                <Text type="secondary">
+                  Select files or a folder first. The portal only scans the file names you choose and suggests document matches.
+                </Text>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <Button icon={<UploadOutlined />} onClick={() => smartFilesInputRef.current?.click()}>
+                  Select Files
+                </Button>
+                <Button icon={<FolderOutlined />} onClick={() => smartFolderInputRef.current?.click()}>
+                  Select Folder
+                </Button>
+              </div>
+            </div>
+
+            {smartSuggestions.length ? (
+              <>
+                <Alert
+                  style={{ marginTop: 14, marginBottom: 12 }}
+                  type={smartMatchedCount === requiredDocs.length ? 'success' : 'info'}
+                  showIcon
+                  message={`Suggested ${smartMatchedCount}/${requiredDocs.length} required document(s) from ${smartSelectedFiles.length} selected file(s)`}
+                  description={`${smartAcceptedCount} suggestion(s) are currently selected for use. You can untick, reject, or replace any row before applying.`}
+                />
+                <Table
+                  size="small"
+                  dataSource={smartSuggestions}
+                  columns={smartSuggestionColumns}
+                  rowKey="documentKey"
+                  pagination={false}
+                  scroll={{ x: 980 }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+                  <Button onClick={clearSmartSuggestions}>Clear Suggestions</Button>
+                  <Button type="primary" onClick={applyAcceptedSmartSuggestions}>
+                    Apply Accepted Suggestions
+                  </Button>
+                </div>
+              </>
+            ) : null}
+          </Card>
 
           {documentSections.map((section, sectionIndex) => (
             <div
@@ -745,19 +1512,38 @@ function SubmitClaimScreen({ onSubmit }) {
                           ) : null}
                         </div>
                         <div>
-                          <Text
-                            type={uploadedFile ? 'secondary' : 'danger'}
-                            style={{
-                              fontSize: 12,
-                              display: 'block',
-                              maxWidth: '100%',
-                              overflow: 'hidden',
-                              textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap'
-                            }}
-                          >
-                            {uploadedFile ? `Uploaded: ${uploadedFile.name}` : 'Not uploaded'}
-                          </Text>
+                          {uploadedFile ? (
+                            <Button
+                              type="link"
+                              onClick={() => openUploadedFilePreview(uploadedFile)}
+                              style={{
+                                padding: 0,
+                                height: 'auto',
+                                maxWidth: '100%',
+                                fontSize: 12,
+                                display: 'block',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              Uploaded: {uploadedFile.name}
+                            </Button>
+                          ) : (
+                            <Text
+                              type="danger"
+                              style={{
+                                fontSize: 12,
+                                display: 'block',
+                                maxWidth: '100%',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap'
+                              }}
+                            >
+                              Not uploaded
+                            </Text>
+                          )}
                         </div>
                       </div>
 
@@ -814,7 +1600,7 @@ function SubmitClaimScreen({ onSubmit }) {
                 <Text type="secondary">{item.label}:</Text>
               </div>
               <div style={{ flex: 1 }}>
-                <Text strong>{item.value || ''}</Text>
+                {item.content || <Text strong>{item.value || ''}</Text>}
               </div>
             </div>
           ))}
@@ -831,10 +1617,30 @@ function SubmitClaimScreen({ onSubmit }) {
       coverage.coverageId === selectedCoverage
     );
     
-    // Helper function to display file lists with names
-    const renderFileList = (files = []) => {
-      if (!files.length) return 'No file uploaded';
-      return files.map((file) => file.name).join(', ');
+    const renderReviewFileList = (files = []) => {
+      if (!files.length) {
+        return <Text type="danger">No file uploaded</Text>;
+      }
+
+      return (
+        <Space direction="vertical" size={4}>
+          {files.map((file) => (
+            <Button
+              key={file.uid || file.name}
+              type="link"
+              onClick={() => openUploadedFilePreview(file)}
+              style={{
+                padding: 0,
+                height: 'auto',
+                textAlign: 'left',
+                whiteSpace: 'normal',
+              }}
+            >
+              {file.name}
+            </Button>
+          ))}
+        </Space>
+      );
     };
     
     return (
@@ -868,10 +1674,16 @@ function SubmitClaimScreen({ onSubmit }) {
               icon: <CalendarOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
               items: selectedCoverageDetails
                 ? [{
+                    label: 'Claim Type',
+                    value: getSelectedClaimTypeOption().title
+                  }, {
                     label: 'Selected Coverage',
                     value: `${selectedCoverageDetails.insuredPersonName} | ${selectedCoverageDetails.vehicleNo} | ${selectedCoverageDetails.coverageType} | ${moment(selectedCoverageDetails.effectiveDate).format('DD MMM YYYY')} - ${moment(selectedCoverageDetails.expiryDate).format('DD MMM YYYY')}`
                   }]
-                : [{ label: 'Selected Coverage', value: 'Not provided' }]
+                : [
+                    { label: 'Claim Type', value: getSelectedClaimTypeOption().title },
+                    { label: 'Selected Coverage', value: 'Not provided' },
+                  ]
             })}
             
             <Divider style={{ margin: '16px 0' }} />
@@ -881,25 +1693,47 @@ function SubmitClaimScreen({ onSubmit }) {
               icon: <FolderOutlined style={{ color: '#FF6600', fontSize: 18 }} />,
               items: requiredDocs.map((doc) => ({
                 label: doc.label,
-                value: renderFileList(documentFiles[doc.key] || [])
+                content: renderReviewFileList(documentFiles[doc.key] || [])
               })),
               labelWidth: 260
             })}
           </div>
           
           <Alert
-            message="Please confirm that all information is correct"
+            message={<Text strong>Please confirm that all information is correct</Text>}
             type="warning"
             showIcon
             style={{ marginBottom: 16 }}
           />
           
-          <Checkbox 
-            checked={termsAgreed}
-            onChange={(e) => setTermsAgreed(e.target.checked)}
+          <div
+            style={{
+              padding: 16,
+              borderRadius: 12,
+              border: '1px solid #f59e0b',
+              background: '#fffbeb',
+            }}
           >
-            I confirm that all information provided is accurate and complete. I understand that providing false information may result in my claim being rejected.
-          </Checkbox>
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+              <Checkbox
+                checked={termsAgreed}
+                onChange={(e) => setTermsAgreed(e.target.checked)}
+                aria-label="Confirm claim declaration"
+                style={{ marginTop: 2, flexShrink: 0 }}
+              />
+              <Space direction="vertical" size={8}>
+              <Text strong style={{ color: '#92400e' }}>
+                I declare that all information and documents submitted are complete, accurate, genuine, and truthful.
+              </Text>
+              <Text>
+                I understand that submitting false, misleading, incomplete, altered, or forged information, or attempting to make a fraudulent claim, may result in the immediate rejection or cancellation of my claim. It may also lead to further investigation, recovery of any amounts paid, suspension from future claims, and referral to the relevant authorities where applicable.
+              </Text>
+              <Text>
+                By ticking this box and submitting the form, I confirm that I have reviewed my submission carefully and accept full responsibility for the information and documents provided.
+              </Text>
+              </Space>
+            </div>
+          </div>
         </Card>
       </div>
     );
@@ -931,11 +1765,11 @@ function SubmitClaimScreen({ onSubmit }) {
         centered
         width={520}
         onCancel={() => setSuccessModalOpen(false)}
-        onOk={() => {
+        onOk={async () => {
           setSuccessModalOpen(false);
 
           if (onSubmit && submittedClaimData) {
-            onSubmit(submittedClaimData);
+            await onSubmit(submittedClaimData);
           }
         }}
       >
@@ -999,6 +1833,44 @@ function SubmitClaimScreen({ onSubmit }) {
       </Modal>
 
       <Modal
+        open={Boolean(smartApplySuccess)}
+        title={null}
+        centered
+        width={460}
+        okText="OK"
+        cancelButtonProps={{ style: { display: 'none' } }}
+        onOk={() => setSmartApplySuccess(null)}
+        onCancel={() => setSmartApplySuccess(null)}
+      >
+        <div style={{ textAlign: 'center', padding: '14px 8px 4px' }}>
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              margin: '0 auto 18px',
+              borderRadius: '50%',
+              background: '#f0fdf4',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '1px solid #bbf7d0',
+            }}
+          >
+            <CheckCircleOutlined style={{ fontSize: 36, color: '#16a34a' }} />
+          </div>
+          <Title level={4} style={{ marginBottom: 8 }}>
+            Smart Upload Applied Successfully
+          </Title>
+          <Text style={{ display: 'block', color: '#5f6b76', lineHeight: 1.7 }}>
+            {smartApplySuccess?.appliedCount || 0} accepted file(s) have been placed into the matching upload field(s).
+          </Text>
+          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
+            You can still replace any file manually before submitting the claim.
+          </Text>
+        </div>
+      </Modal>
+
+      <Modal
         open={Boolean(samplePreview)}
         title={null}
         footer={null}
@@ -1055,10 +1927,69 @@ function SubmitClaimScreen({ onSubmit }) {
         </div>
       </Modal>
 
+      <Modal
+        open={Boolean(uploadedFilePreview)}
+        title={uploadedFilePreview?.name || 'Uploaded file'}
+        footer={[
+          <Button key="open" onClick={() => uploadedFilePreview?.url && window.open(uploadedFilePreview.url, '_blank', 'noopener,noreferrer')}>
+            Open in New Tab
+          </Button>,
+          <Button key="close" type="primary" onClick={closeUploadedFilePreview}>
+            Close
+          </Button>,
+        ]}
+        centered
+        width={820}
+        onCancel={closeUploadedFilePreview}
+      >
+        {uploadedFilePreview ? (
+          <div
+            style={{
+              border: '1px solid #f0f0f0',
+              borderRadius: 12,
+              overflow: 'hidden',
+              background: '#fafafa',
+              minHeight: 220,
+            }}
+          >
+            {isImagePreview(uploadedFilePreview) ? (
+              <img
+                src={uploadedFilePreview.url}
+                alt={uploadedFilePreview.name}
+                style={{
+                  display: 'block',
+                  width: '100%',
+                  maxHeight: '70vh',
+                  objectFit: 'contain',
+                  background: '#fff',
+                }}
+              />
+            ) : isPdfPreview(uploadedFilePreview) ? (
+              <iframe
+                title={uploadedFilePreview.name}
+                src={uploadedFilePreview.url}
+                style={{
+                  width: '100%',
+                  height: '70vh',
+                  border: 0,
+                  background: '#fff',
+                }}
+              />
+            ) : (
+              <div style={{ padding: 24, textAlign: 'center' }}>
+                <FileTextOutlined style={{ fontSize: 42, color: '#FF6600', marginBottom: 12 }} />
+                <Title level={5}>Preview is not available for this file type</Title>
+                <Text type="secondary">Use Open in New Tab to view or download the selected file.</Text>
+              </div>
+            )}
+          </div>
+        ) : null}
+      </Modal>
+
       <div className="portal-dashboard-hero portal-dashboard-theme-soft">
         <div className="portal-dashboard-hero-content">
           <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Submit Claim</span>
-          <Title level={2} className="portal-dashboard-title">Vehicle Claim</Title>
+          <Title level={2} className="portal-dashboard-title">{getSelectedClaimTypeOption().title} Claim</Title>
           <Text className="portal-dashboard-description">
             Complete all steps to submit your claim.
           </Text>

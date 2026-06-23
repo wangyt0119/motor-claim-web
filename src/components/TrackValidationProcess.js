@@ -92,21 +92,23 @@ function TrackValidationProcess({ claims = [], loading = false, onRefresh = null
   }, [selectedDateFilter]);
 
   const filteredClaims = useMemo(() => {
-    return validationClaims.filter((claim) => {
-      const matchesSearch = searchQuery === '' || 
-        claim.claimId.toLowerCase().includes(searchQuery.toLowerCase());
-      
-      const matchesStatus = selectedStatusFilter === 'All' || 
-        claim.routingStatus.includes(selectedStatusFilter);
-      
-      const matchesAI = selectedAIFilter === 'All' || 
-        claim.aiAssessment === selectedAIFilter;
-      
-      const matchesDate = selectedDateFilter === 'All' || 
-        matchesDateFilter(claim.submissionDate);
-      
-      return matchesSearch && matchesStatus && matchesAI && matchesDate;
-    });
+    return validationClaims
+      .filter((claim) => {
+        const matchesSearch = searchQuery === '' ||
+          claim.claimId.toLowerCase().includes(searchQuery.toLowerCase());
+
+        const matchesStatus = selectedStatusFilter === 'All' ||
+          claim.routingStatus.includes(selectedStatusFilter);
+
+        const matchesAI = selectedAIFilter === 'All' ||
+          claim.aiAssessment === selectedAIFilter;
+
+        const matchesDate = selectedDateFilter === 'All' ||
+          matchesDateFilter(claim.submissionDate);
+
+        return matchesSearch && matchesStatus && matchesAI && matchesDate;
+      })
+      .sort((left, right) => new Date(right.submissionDate).getTime() - new Date(left.submissionDate).getTime());
   }, [matchesDateFilter, searchQuery, selectedStatusFilter, selectedAIFilter, selectedDateFilter, validationClaims]);
 
   // Helper functions for status colors
@@ -216,6 +218,8 @@ function TrackValidationProcess({ claims = [], loading = false, onRefresh = null
       title: 'Submission Date',
       dataIndex: 'submissionDate',
       key: 'submissionDate',
+      defaultSortOrder: 'descend',
+      sorter: (left, right) => new Date(left.submissionDate).getTime() - new Date(right.submissionDate).getTime(),
       render: (date) => (
         <Text type="secondary">
           {moment(date).format('DD MMM YYYY')}<br />

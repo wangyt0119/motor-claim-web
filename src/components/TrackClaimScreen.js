@@ -9,7 +9,8 @@ import {
   FileTextOutlined, ClockCircleOutlined, CheckCircleOutlined,
   CloseCircleOutlined, UploadOutlined, EyeOutlined,
   LightbulbOutlined, CustomerServiceOutlined, FileSearchOutlined,
-  BulbOutlined, WarningOutlined, PlusOutlined, CloseOutlined
+  BulbOutlined, WarningOutlined, PlusOutlined, CloseOutlined,
+  CopyOutlined
 } from '@ant-design/icons';
 import moment from 'moment';
 
@@ -33,6 +34,35 @@ const TrackClaimScreen = ({ claims = [] }) => {
     setSelectedClaim(claim);
     setUploadModalVisible(true);
   };
+
+  const copyClaimId = async (claimId, event) => {
+    event?.stopPropagation();
+
+    try {
+      await navigator.clipboard.writeText(String(claimId));
+      message.success(`Claim ID ${claimId} copied`);
+    } catch (error) {
+      message.error('Unable to copy claim ID');
+    }
+  };
+
+  const renderCopyableClaimId = (claimId, strong = true) => (
+    <Space size={6}>
+      <Text strong={strong} style={{ fontSize: strong ? 16 : undefined }}>
+        Claim ID: {claimId}
+      </Text>
+      <Tooltip title="Copy claim ID">
+        <Button
+          type="text"
+          size="small"
+          icon={<CopyOutlined />}
+          aria-label={`Copy claim ID ${claimId}`}
+          onClick={(event) => copyClaimId(claimId, event)}
+          style={{ color: '#FF6600' }}
+        />
+      </Tooltip>
+    </Space>
+  );
 
   const getStatusColor = (status) => {
     switch (status.toLowerCase()) {
@@ -323,7 +353,9 @@ const TrackClaimScreen = ({ claims = [] }) => {
             <Col span={12}>
               <Card size="small" title="Claim Information" bordered={false}>
                 <Descriptions column={1} size="small" bordered>
-                  <Descriptions.Item label="Claim ID">{selectedClaim.id}</Descriptions.Item>
+                  <Descriptions.Item label="Claim ID">
+                    {renderCopyableClaimId(selectedClaim.id, false)}
+                  </Descriptions.Item>
                   <Descriptions.Item label="Type">{selectedClaim.type}</Descriptions.Item>
                   <Descriptions.Item label="Date">
                     {moment(selectedClaim.date).format('DD MMM YYYY')}
@@ -517,7 +549,7 @@ const TrackClaimScreen = ({ claims = [] }) => {
                     <CarOutlined style={{ color: '#FF6600', fontSize: 20 }} />
                   </div>
                   <div>
-                    <Text strong style={{ fontSize: 16 }}>Claim ID: {claim.id}</Text>
+                    {renderCopyableClaimId(claim.id)}
                     <div>
                       <Text type="secondary">{claim.type}</Text>
                     </div>

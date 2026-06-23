@@ -35,6 +35,40 @@ export async function createOrUpdateWorkshopAppointment(payload) {
   return mapWorkshopAppointment(response.data?.data ?? response.data ?? {});
 }
 
+export async function assignVehicleAlreadyAtWorkshop(payload) {
+  const response = await apiClient.post('/Workshop/assignments/already-at-workshop', payload);
+  return mapWorkshopAppointment(response.data?.data ?? response.data ?? {});
+}
+
+export async function createWorkshopClaimLinkRequest(payload) {
+  const response = await apiClient.post('/Workshop/panel-workshop/claim-link-requests', payload);
+  return mapWorkshopClaimLinkRequest(response.data?.data ?? response.data ?? {});
+}
+
+export async function getMyWorkshopClaimLinkRequests() {
+  const response = await apiClient.get('/Workshop/panel-workshop/claim-link-requests');
+  const payload = response.data?.data ?? response.data ?? [];
+  return Array.isArray(payload) ? payload.map(mapWorkshopClaimLinkRequest) : [];
+}
+
+export async function getMyCustomerClaimLinkRequests() {
+  const response = await apiClient.get('/Workshop/claim-link-requests');
+  const payload = response.data?.data ?? response.data ?? [];
+  return Array.isArray(payload) ? payload.map(mapWorkshopClaimLinkRequest) : [];
+}
+
+export async function acceptWorkshopClaimLinkRequest(requestId) {
+  const response = await apiClient.post(`/Workshop/claim-link-requests/${requestId}/accept`);
+  return mapWorkshopAppointment(response.data?.data ?? response.data ?? {});
+}
+
+export async function rejectWorkshopClaimLinkRequest(requestId, reason) {
+  const response = await apiClient.post(`/Workshop/claim-link-requests/${requestId}/reject`, {
+    reason: reason || null,
+  });
+  return mapWorkshopClaimLinkRequest(response.data?.data ?? response.data ?? {});
+}
+
 export async function getWorkshopAppointmentByClaim(claimId) {
   const response = await apiClient.get(`/Workshop/appointments/claim/${claimId}`);
   return mapWorkshopAppointment(response.data?.data ?? response.data ?? {});
@@ -133,8 +167,29 @@ function mapWorkshopAppointment(appointment) {
     timeSlotStart: appointment.timeSlotStart ?? appointment.TimeSlotStart ?? null,
     timeSlotEnd: appointment.timeSlotEnd ?? appointment.TimeSlotEnd ?? null,
     status: appointment.status ?? appointment.Status ?? '',
+    assignmentType: appointment.assignmentType ?? appointment.AssignmentType ?? '',
     notes: appointment.notes ?? appointment.Notes ?? null,
     createdAt: appointment.createdAt ?? appointment.CreatedAt ?? null,
+  };
+}
+
+function mapWorkshopClaimLinkRequest(request) {
+  if (!request || typeof request !== 'object') {
+    return null;
+  }
+
+  return {
+    requestId: request.requestId ?? request.RequestId ?? null,
+    claimId: request.claimId ?? request.ClaimId ?? null,
+    workshopId: request.workshopId ?? request.WorkshopId ?? null,
+    workshopName: request.workshopName ?? request.WorkshopName ?? '',
+    workshopState: request.workshopState ?? request.WorkshopState ?? '',
+    arrivalDate: request.arrivalDate ?? request.ArrivalDate ?? null,
+    status: request.status ?? request.Status ?? '',
+    notes: request.notes ?? request.Notes ?? null,
+    customerResponseNote: request.customerResponseNote ?? request.CustomerResponseNote ?? null,
+    createdAt: request.createdAt ?? request.CreatedAt ?? null,
+    respondedAt: request.respondedAt ?? request.RespondedAt ?? null,
   };
 }
 

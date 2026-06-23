@@ -133,7 +133,6 @@ function SuspiciousClaimsReviewScreen({ claims = [], loading = false, onRefresh,
       render: (_, claim) => (
         <Space direction="vertical" size={3}>
           <Tag color="orange">{claim.status || 'Pending Manual Review'}</Tag>
-          <Text type="secondary">{formatStpLabel(claim.stpStatus)}</Text>
         </Space>
       ),
     },
@@ -337,20 +336,20 @@ function getSeverityColor(severity) {
   }
 }
 
-function formatStpLabel(stpStatus) {
-  if (!stpStatus) {
-    return 'STP status not available';
-  }
+// function formatStpLabel(stpStatus) {
+//   if (!stpStatus) {
+//     return 'STP status not available';
+//   }
 
-  if (stpStatus === 'AutoApproved') {
-    return 'STP auto approved';
-  }
+//   if (stpStatus === 'AutoApproved') {
+//     return 'STP auto approved';
+//   }
 
-  if (stpStatus === 'ManualReview') {
-    return 'STP manual review';
-  }
+//   if (stpStatus === 'ManualReview') {
+//     return 'STP manual review';
+//   }
 
-  return stpStatus;
-}
+//   return stpStatus;
+// }
 
 export default SuspiciousClaimsReviewScreen;

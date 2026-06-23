@@ -137,7 +137,7 @@ function ClaimReviewDrawer({ claim, open, onClose }) {
               type={claim.isStpApproved ? 'success' : 'warning'}
               showIcon
               message={claim.isStpApproved ? 'Claim passed STP validation' : 'Claim needs manual review'}
-              description={`Backend STP status: ${formatStpStatus(claim.stpStatus)}`}
+              // description={`Backend STP status: ${formatStpStatus(claim.stpStatus)}`}
               style={{ marginBottom: 16 }}
             />
 

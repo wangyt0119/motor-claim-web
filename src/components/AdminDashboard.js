@@ -1,32 +1,59 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Card, DatePicker, Divider, Empty, Input, Layout, Menu, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Avatar, Button, Card, DatePicker, Divider, Empty, Form, Input, Layout, Menu, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
 import {
   AreaChartOutlined,
   ClockCircleOutlined,
   DownloadOutlined,
+  EyeOutlined,
   FileSearchOutlined,
   LogoutOutlined,
+  PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
+  TeamOutlined,
   UserOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
 import '../styles/MainScreen.css';
 import { getAllClaims } from '../services/claimService';
 import {
+  activateAdminUser,
+  createAdminUser,
+  deactivateAdminUser,
+  getAdminUsers,
   getSystemMonitoringDashboard,
   getSystemMonitoringLogs,
+  updateAdminUser,
 } from '../services/adminService';
-import { getAllWorkshopPayments, getAllWorkshopRepairEstimates } from '../services/workshopService';
+import { getAllWorkshopPayments, getAllWorkshopRepairEstimates, getPanelWorkshopStates, getPanelWorkshopsByState } from '../services/workshopService';
+import { USER_ROLE, normalizeRole } from '../constants/userRoles';
+import ClaimWorkflowDrawer from './ClaimWorkflowDrawer';
 
 const { Sider, Content } = Layout;
 const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
+const roleOptions = [
+  { label: 'Officer', value: USER_ROLE.Officer },
+  { label: 'Admin', value: USER_ROLE.Admin },
+  { label: 'Panel Workshop', value: USER_ROLE.PanelWorkshop },
+];
+
 function AdminDashboard({ currentAdmin, onSignOut }) {
+  const [userForm] = Form.useForm();
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [dashboard, setDashboard] = useState(null);
   const [logs, setLogs] = useState([]);
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
+  const [savingUser, setSavingUser] = useState(false);
+  const [userModalOpen, setUserModalOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState('');
+  const [userSearchText, setUserSearchText] = useState('');
+  const [workshopOptions, setWorkshopOptions] = useState([]);
+  const [workshopsLoading, setWorkshopsLoading] = useState(false);
   const [loadingDashboard, setLoadingDashboard] = useState(true);
   const [loadingLogs, setLoadingLogs] = useState(true);
   const [operationsLoading, setOperationsLoading] = useState(true);
@@ -36,10 +63,12 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     payments: [],
     error: '',
   });
+  const [operationClaimSearchText, setOperationClaimSearchText] = useState('');
+  const [selectedOperationClaim, setSelectedOperationClaim] = useState(null);
   const [exportingLogs, setExportingLogs] = useState(false);
   const [dateRange, setDateRange] = useState([]);
   const [moduleFilter, setModuleFilter] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState('');
+  const [logUserRoleFilter, setLogUserRoleFilter] = useState('');
   const [userIdFilter, setUserIdFilter] = useState('');
 
   useEffect(() => {
@@ -47,6 +76,8 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     refreshDashboard();
     refreshLogs();
     refreshOperations();
+    refreshAdminUsers();
+    loadWorkshopOptions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -76,6 +107,51 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     }
   }
 
+  async function refreshAdminUsers(overrides = {}) {
+    setAdminUsersLoading(true);
+    try {
+      const role = overrides.role !== undefined ? overrides.role : userRoleFilter;
+      const isActive = overrides.isActive !== undefined ? overrides.isActive : userStatusFilter;
+      const result = await getAdminUsers({
+        role: role || undefined,
+        isActive: isActive === '' ? undefined : isActive,
+      });
+      setAdminUsers(result);
+    } catch (error) {
+      message.error(error?.response?.data?.message || error?.message || 'Unable to load internal users.');
+    } finally {
+      setAdminUsersLoading(false);
+    }
+  }
+
+  async function loadWorkshopOptions() {
+    setWorkshopsLoading(true);
+    try {
+      const states = await getPanelWorkshopStates();
+      const workshopLists = await Promise.all((states || []).map((state) => getPanelWorkshopsByState(state)));
+      const workshopMap = new Map();
+
+      workshopLists.flat().filter(Boolean).forEach((workshop) => {
+        if (workshop.workshopId && !workshopMap.has(workshop.workshopId)) {
+          workshopMap.set(workshop.workshopId, workshop);
+        }
+      });
+
+      setWorkshopOptions(
+        Array.from(workshopMap.values())
+          .sort((left, right) => String(left.name).localeCompare(String(right.name)))
+          .map((workshop) => ({
+            label: `${workshop.name}${workshop.state ? ` (${workshop.state})` : ''}`,
+            value: workshop.workshopId,
+          }))
+      );
+    } catch (error) {
+      setWorkshopOptions([]);
+    } finally {
+      setWorkshopsLoading(false);
+    }
+  }
+
   async function refreshDashboard() {
     setLoadingDashboard(true);
     try {
@@ -95,7 +171,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
         buildMonitoringParams({
           dateRange,
           module: moduleFilter || null,
-          userRole: userRoleFilter || null,
+          userRole: logUserRoleFilter || null,
           userId: userIdFilter || null,
           take: 300,
         })
@@ -116,7 +192,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
         currentAdmin,
         dateRange,
         moduleFilter,
-        userRoleFilter,
+        userRoleFilter: logUserRoleFilter,
         userIdFilter,
       });
       const fileName = `system-activity-logs-${moment().format('YYYYMMDD-HHmmss')}.pdf`;
@@ -146,6 +222,28 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
   }, [dashboard, logs]);
 
   const operationsSummary = useMemo(() => buildOperationsSummary(operations), [operations]);
+  const userSummary = useMemo(() => buildUserSummary(adminUsers), [adminUsers]);
+  const filteredAdminUsers = useMemo(() => {
+    const normalizedSearch = userSearchText.trim().toLowerCase();
+
+    if (!normalizedSearch) {
+      return adminUsers;
+    }
+
+    return adminUsers.filter((user) =>
+      [
+        user.fullName,
+        user.email,
+        formatRole(user.role),
+        user.workshopName,
+        user.userId,
+      ]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+        .includes(normalizedSearch)
+    );
+  }, [adminUsers, userSearchText]);
 
   const dashboardView = useMemo(() => {
     if (!dashboard) {
@@ -237,6 +335,148 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
       render: (value) => `${value} ms`,
     },
   ];
+
+  const userColumns = [
+    {
+      title: 'User',
+      key: 'user',
+      width: 260,
+      render: (_, user) => (
+        <Space direction="vertical" size={2}>
+          <Text strong>{user.fullName || 'Unnamed user'}</Text>
+          <Text type="secondary">{user.email || 'No email'}</Text>
+        </Space>
+      ),
+    },
+    {
+      title: 'Role',
+      dataIndex: 'role',
+      key: 'role',
+      width: 150,
+      render: (value) => <Tag color={getRoleColor(value)}>{formatRole(value)}</Tag>,
+    },
+    {
+      title: 'Workshop',
+      key: 'workshop',
+      width: 230,
+      render: (_, user) => user.workshopName || (Number(user.workshopId) > 0 ? `Workshop #${user.workshopId}` : 'Not assigned'),
+    },
+    {
+      title: 'Status',
+      dataIndex: 'isActive',
+      key: 'isActive',
+      width: 120,
+      render: (value) => <Tag color={value ? 'green' : 'red'}>{value ? 'Active' : 'Inactive'}</Tag>,
+    },
+    {
+      title: 'Created',
+      dataIndex: 'createdAt',
+      key: 'createdAt',
+      width: 150,
+      render: (value) => (value ? moment(value).format('DD MMM YYYY') : 'Not available'),
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      fixed: 'right',
+      width: 210,
+      render: (_, user) => (
+        <Space wrap>
+          <Button size="small" onClick={() => openEditUserModal(user)}>Edit</Button>
+          <Popconfirm
+            title={user.isActive ? 'Deactivate this account?' : 'Activate this account?'}
+            okText={user.isActive ? 'Deactivate' : 'Activate'}
+            okButtonProps={{ danger: user.isActive }}
+            onConfirm={() => handleToggleUserStatus(user)}
+          >
+            <Button size="small" danger={user.isActive}>
+              {user.isActive ? 'Deactivate' : 'Activate'}
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    },
+  ];
+
+  function openCreateUserModal() {
+    setEditingUser(null);
+    userForm.resetFields();
+    userForm.setFieldsValue({
+      role: USER_ROLE.Officer,
+      isActive: true,
+      workshopId: null,
+    });
+    setUserModalOpen(true);
+  }
+
+  function openEditUserModal(user) {
+    setEditingUser(user);
+    userForm.resetFields();
+    userForm.setFieldsValue({
+      fullName: user.fullName,
+      email: user.email,
+      role: normalizeRole(user.role),
+      workshopId: user.workshopId || null,
+      isActive: user.isActive,
+    });
+    setUserModalOpen(true);
+  }
+
+  function closeUserModal() {
+    setUserModalOpen(false);
+    setEditingUser(null);
+    userForm.resetFields();
+  }
+
+  async function handleSaveUser() {
+    const values = await userForm.validateFields();
+    const role = normalizeRole(values.role);
+    const payload = {
+      fullName: values.fullName,
+      email: values.email,
+      role,
+      workshopId: role === USER_ROLE.PanelWorkshop ? values.workshopId : null,
+      isActive: Boolean(values.isActive),
+    };
+
+    if (values.password) {
+      payload.password = values.password;
+    }
+
+    setSavingUser(true);
+    try {
+      if (editingUser?.userId) {
+        await updateAdminUser(editingUser.userId, payload);
+        message.success('User account updated.');
+      } else {
+        await createAdminUser(payload);
+        message.success('Internal user created.');
+      }
+
+      closeUserModal();
+      refreshAdminUsers();
+    } catch (error) {
+      message.error(error?.response?.data?.message || error?.message || 'Unable to save user account.');
+    } finally {
+      setSavingUser(false);
+    }
+  }
+
+  async function handleToggleUserStatus(user) {
+    try {
+      if (user.isActive) {
+        await deactivateAdminUser(user.userId);
+        message.success('User account deactivated.');
+      } else {
+        await activateAdminUser(user.userId);
+        message.success('User account activated.');
+      }
+
+      refreshAdminUsers();
+    } catch (error) {
+      message.error(error?.response?.data?.message || error?.message || 'Unable to update user status.');
+    }
+  }
 
   function renderDashboardContent() {
     if (loadingDashboard && !dashboard) {
@@ -408,9 +648,9 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
   }
 
   function renderOperationsContent() {
-    const recentClaims = [...operations.claims]
+    const filteredClaims = [...operations.claims]
       .sort((left, right) => new Date(right.createdAt || 0) - new Date(left.createdAt || 0))
-      .slice(0, 12);
+      .filter((claim) => matchesOperationClaimSearch(claim, operationClaimSearchText, operations.payments));
 
     return (
       <div className="portal-dashboard-stack">
@@ -492,7 +732,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
                 </div>
               </div>
               <div className="portal-dashboard-list">
-                <SummaryRow label="Repair estimates" value={operationsSummary.totalEstimates} tone="#0f766e" />
+                <SummaryRow label="Repair quotations" value={operationsSummary.totalEstimates} tone="#0f766e" />
                 <SummaryRow label="STP approved estimates" value={operationsSummary.stpApprovedEstimates} tone="#16a34a" />
                 <SummaryRow label="Payments created" value={operationsSummary.totalPayments} tone="#2563eb" />
                 <SummaryRow label="Paid workshop amount" value={`RM ${operationsSummary.paidPaymentAmount.toFixed(2)}`} tone="#7c3aed" />
@@ -507,30 +747,231 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
               <Title level={4} className="portal-dashboard-card-title">Recent Claims</Title>
               <Text className="portal-dashboard-card-subtitle">Latest submitted claims visible to administrators</Text>
             </div>
+            <Input
+              allowClear
+              placeholder="Search claim, customer, vehicle, status, workshop or payment"
+              style={{ width: 360 }}
+              value={operationClaimSearchText}
+              onChange={(event) => setOperationClaimSearchText(event.target.value)}
+            />
           </div>
           <Table
-            dataSource={recentClaims}
+            dataSource={filteredClaims}
             rowKey={(claim) => claim.id || claim.claimId}
             loading={operationsLoading}
             pagination={{ pageSize: 8 }}
-            scroll={{ x: 900 }}
-            locale={{ emptyText: <Empty description="No claims available yet." /> }}
+            scroll={{ x: 1120 }}
+            locale={{ emptyText: <Empty description="No claims matched this search." /> }}
             columns={[
               { title: 'Claim ID', dataIndex: 'id', key: 'id', width: 130 },
               { title: 'Customer', key: 'customer', render: (_, claim) => claim.customerName || claim.insuredPersonName || claim.vehicleNumber || 'Not available' },
               { title: 'Vehicle', key: 'vehicle', render: (_, claim) => claim.vehicleNumber || claim.registrationNo || 'Not available' },
               { title: 'Status', dataIndex: 'status', key: 'status', render: (value) => <Tag color={getClaimStatusColor(value)}>{value || 'Unknown'}</Tag> },
               { title: 'STP', key: 'stp', render: (_, claim) => <Tag color={claim.isStpApproved ? 'green' : 'orange'}>{claim.isStpApproved ? 'Passed' : 'Review'}</Tag> },
+              {
+                title: 'Workshop',
+                key: 'workshop',
+                render: (_, claim) => claim.workshopRepairEstimate?.workshopName || claim.workshopAppointment?.workshopName || 'Not assigned',
+              },
+              {
+                title: 'Payment',
+                key: 'payment',
+                render: (_, claim) => {
+                  const payment = findOperationPayment(claim, operations.payments);
+                  return payment ? <Tag color={getPaymentStatusColor(payment.status)}>{payment.status || 'Unknown'}</Tag> : 'Not available';
+                },
+              },
               { title: 'Submitted', dataIndex: 'createdAt', key: 'createdAt', render: (value) => value ? moment(value).format('DD MMM YYYY') : 'Not available' },
+              {
+                title: 'Action',
+                key: 'action',
+                fixed: 'right',
+                width: 110,
+                render: (_, claim) => (
+                  <Button icon={<EyeOutlined />} onClick={() => setSelectedOperationClaim(enrichClaimForAdminView(claim, operations.payments))}>
+                    View
+                  </Button>
+                ),
+              },
             ]}
           />
         </Card>
+        <ClaimWorkflowDrawer
+          claim={selectedOperationClaim}
+          open={Boolean(selectedOperationClaim)}
+          onClose={() => setSelectedOperationClaim(null)}
+          onWorkflowUpdated={refreshOperations}
+          readOnly
+        />
+      </div>
+    );
+  }
+
+  function renderUsersContent() {
+    return (
+      <div className="portal-dashboard-stack">
+        <div className="portal-dashboard-hero portal-dashboard-theme-soft">
+          <div className="portal-dashboard-hero-content">
+            <span className="portal-dashboard-kicker portal-dashboard-kicker-soft">Admin Governance</span>
+            <Title level={2} className="portal-dashboard-title">Internal User Management</Title>
+            <Text className="portal-dashboard-description">
+              Manage administrator, officer, and panel workshop accounts, role assignments, workshop links, and account access status.
+            </Text>
+
+            <div className="portal-dashboard-chip-row">
+              <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+                <span className="portal-dashboard-chip-label">Internal Users</span>
+                <span className="portal-dashboard-chip-value">{adminUsers.length}</span>
+              </div>
+              <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+                <span className="portal-dashboard-chip-label">Active</span>
+                <span className="portal-dashboard-chip-value">{userSummary.active}</span>
+              </div>
+              <div className="portal-dashboard-chip portal-dashboard-chip-soft">
+                <span className="portal-dashboard-chip-label">Panel Workshop</span>
+                <span className="portal-dashboard-chip-value">{userSummary.panelWorkshop}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="portal-dashboard-grid">
+          <div className="portal-dashboard-span-3">
+            <MetricCard label="Admins" value={userSummary.admin} subtitle="Governance accounts" icon={<UserOutlined />} accent="#ea580c" background="#fff7ed" />
+          </div>
+          <div className="portal-dashboard-span-3">
+            <MetricCard label="Officers" value={userSummary.officer} subtitle="Claim review accounts" icon={<SafetyCertificateOutlined />} accent="#2563eb" background="#eff6ff" />
+          </div>
+          <div className="portal-dashboard-span-3">
+            <MetricCard label="Workshops" value={userSummary.panelWorkshop} subtitle="Assigned workshop users" icon={<TeamOutlined />} accent="#0f766e" background="#f0fdfa" />
+          </div>
+          <div className="portal-dashboard-span-3">
+            <MetricCard label="Inactive" value={userSummary.inactive} subtitle="Blocked from login" icon={<FileSearchOutlined />} accent="#dc2626" background="#fef2f2" />
+          </div>
+        </div>
+
+        <Card className="portal-dashboard-card">
+          <div className="portal-dashboard-card-header">
+            <div>
+              <Title level={4} className="portal-dashboard-card-title">User Accounts</Title>
+              <Text className="portal-dashboard-card-subtitle">Create internal users, assign roles, and control login access.</Text>
+            </div>
+            <Button type="primary" icon={<PlusOutlined />} onClick={openCreateUserModal}>
+              Create User
+            </Button>
+          </div>
+
+          <div className="portal-dashboard-toolbar" style={{ marginBottom: 16 }}>
+            <div className="portal-dashboard-toolbar-main">
+              <Input
+                allowClear
+                placeholder="Search name, email, role or workshop"
+                style={{ width: 280 }}
+                value={userSearchText}
+                onChange={(event) => setUserSearchText(event.target.value)}
+              />
+              <Select
+                allowClear
+                placeholder="Role"
+                style={{ width: 180 }}
+                options={roleOptions}
+                value={userRoleFilter || undefined}
+                onChange={(value) => {
+                  const nextRole = value || '';
+                  setUserRoleFilter(nextRole);
+                  refreshAdminUsers({ role: nextRole });
+                }}
+              />
+              <Select
+                allowClear
+                placeholder="Account status"
+                style={{ width: 170 }}
+                options={[
+                  { label: 'Active', value: true },
+                  { label: 'Inactive', value: false },
+                ]}
+                value={userStatusFilter === '' ? undefined : userStatusFilter}
+                onChange={(value) => {
+                  const nextStatus = value === undefined ? '' : value;
+                  setUserStatusFilter(nextStatus);
+                  refreshAdminUsers({ isActive: nextStatus });
+                }}
+              />
+            </div>
+            <Button icon={<ReloadOutlined />} onClick={() => refreshAdminUsers()} loading={adminUsersLoading}>Refresh</Button>
+          </div>
+
+          <Table
+            dataSource={filteredAdminUsers}
+            columns={userColumns}
+            rowKey={(user) => user.userId || user.email}
+            loading={adminUsersLoading}
+            pagination={{ pageSize: 10 }}
+            scroll={{ x: 1250 }}
+            locale={{ emptyText: <Empty description="No internal users found for the current filters." /> }}
+          />
+        </Card>
+
+        <Modal
+          open={userModalOpen}
+          title={editingUser ? 'Edit User Account' : 'Create Internal User'}
+          onCancel={closeUserModal}
+          onOk={handleSaveUser}
+          okText={editingUser ? 'Save Changes' : 'Create User'}
+          confirmLoading={savingUser}
+          destroyOnHidden
+        >
+          <Form form={userForm} layout="vertical" requiredMark={false}>
+            <Form.Item name="fullName" label="Full Name" rules={[{ required: true, message: 'Full name is required.' }]}>
+              <Input placeholder="Enter full name" />
+            </Form.Item>
+            <Form.Item name="email" label="Email" rules={[{ required: true, message: 'Email is required.' }, { type: 'email', message: 'Enter a valid email.' }]}>
+              <Input placeholder="name@etiqa.com.my" />
+            </Form.Item>
+            {/* <Form.Item
+              name="password"
+              label={editingUser ? 'New Password' : 'Password'}
+              rules={editingUser ? [] : [{ required: true, message: 'Password is required.' }]}
+              extra={editingUser ? 'Leave blank to keep the current password.' : null}
+            >
+              <Input.Password placeholder={editingUser ? 'Optional new password' : 'Create a password'} />
+            </Form.Item> */}
+            <Form.Item name="role" label="Role" rules={[{ required: true, message: 'Role is required.' }]}>
+              <Select options={roleOptions} placeholder="Select role" />
+            </Form.Item>
+            <Form.Item shouldUpdate={(previous, current) => previous.role !== current.role} noStyle>
+              {({ getFieldValue }) => {
+                const selectedRole = normalizeRole(getFieldValue('role'));
+                return selectedRole === USER_ROLE.PanelWorkshop ? (
+                  <Form.Item name="workshopId" label="Panel Workshop" rules={[{ required: true, message: 'Workshop assignment is required for panel workshop users.' }]}>
+                    <Select
+                      showSearch
+                      allowClear
+                      loading={workshopsLoading}
+                      options={workshopOptions}
+                      optionFilterProp="label"
+                      placeholder="Assign a panel workshop"
+                    />
+                  </Form.Item>
+                ) : null;
+              }}
+            </Form.Item>
+            <Form.Item name="isActive" label="Account Status" rules={[{ required: true, message: 'Account status is required.' }]}>
+              <Select
+                options={[
+                  { label: 'Active', value: true },
+                  { label: 'Inactive', value: false },
+                ]}
+              />
+            </Form.Item>
+          </Form>
+        </Modal>
       </div>
     );
   }
 
   function renderLogsContent() {
-    const activeFilterCount = [moduleFilter, userRoleFilter, userIdFilter].filter(Boolean).length;
+    const activeFilterCount = [moduleFilter, logUserRoleFilter, userIdFilter].filter(Boolean).length;
     const hasDateRange = Array.isArray(dateRange) && dateRange.length === 2 && dateRange[0] && dateRange[1];
 
     return (
@@ -577,8 +1018,8 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
                 { label: 'Admin', value: 'Admin' },
                 { label: 'PanelWorkshop', value: 'PanelWorkshop' },
               ]}
-              value={userRoleFilter || undefined}
-              onChange={(value) => setUserRoleFilter(value || '')}
+              value={logUserRoleFilter || undefined}
+              onChange={(value) => setLogUserRoleFilter(value || '')}
             />
             <Input placeholder="User ID" style={{ width: 220 }} value={userIdFilter} onChange={(event) => setUserIdFilter(event.target.value)} />
             </div>
@@ -633,6 +1074,9 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
             <Menu.Item key="2" icon={<SafetyCertificateOutlined />} onClick={() => setSelectedIndex(2)}>
               <span>Operations</span>
             </Menu.Item>
+            <Menu.Item key="3" icon={<TeamOutlined />} onClick={() => setSelectedIndex(3)}>
+              <span>Users</span>
+            </Menu.Item>
           </Menu>
         </div>
         <div className="sign-out-container">
@@ -644,6 +1088,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
           {selectedIndex === 0 ? renderDashboardContent() : null}
           {selectedIndex === 1 ? renderLogsContent() : null}
           {selectedIndex === 2 ? renderOperationsContent() : null}
+          {selectedIndex === 3 ? renderUsersContent() : null}
         </Content>
       </Layout>
     </Layout>
@@ -741,6 +1186,114 @@ function getClaimStatusColor(status) {
   if (status === 'Pending Manual Review') return 'orange';
   if (status === 'Pending Customer Action') return 'gold';
   return 'blue';
+}
+
+function getPaymentStatusColor(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'paid') return 'green';
+  if (normalized === 'failed' || normalized === 'rejected') return 'red';
+  if (normalized === 'pending') return 'gold';
+  if (normalized === 'processing') return 'blue';
+  if (normalized === 'onhold' || normalized === 'on hold') return 'orange';
+  return 'default';
+}
+
+function enrichClaimForAdminView(claim, payments = []) {
+  return {
+    ...claim,
+    workshopPayment: claim.workshopPayment || findOperationPayment(claim, payments),
+  };
+}
+
+function findOperationPayment(claim, payments = []) {
+  const claimId = String(claim?.id || claim?.claimId || '').toLowerCase();
+  const estimateId = String(claim?.workshopRepairEstimate?.estimateId || '').toLowerCase();
+
+  if (!claimId && !estimateId) {
+    return null;
+  }
+
+  return payments.find((payment) => {
+    const paymentClaimId = String(payment?.claimId || '').toLowerCase();
+    const paymentEstimateId = String(payment?.estimateId || '').toLowerCase();
+    return (claimId && paymentClaimId === claimId) || (estimateId && paymentEstimateId === estimateId);
+  }) || null;
+}
+
+function matchesOperationClaimSearch(claim, searchText, payments = []) {
+  const normalizedSearch = searchText.trim().toLowerCase();
+
+  if (!normalizedSearch) {
+    return true;
+  }
+
+  const payment = findOperationPayment(claim, payments);
+  const searchableText = [
+    claim.id,
+    claim.claimId,
+    claim.customerName,
+    claim.insuredPersonName,
+    claim.customerEmail,
+    claim.email,
+    claim.vehicleNumber,
+    claim.registrationNo,
+    claim.vehicleRegistration,
+    claim.status,
+    claim.reviewStatus,
+    claim.stpStatus,
+    claim.workshopAppointment?.workshopName,
+    claim.workshopRepairEstimate?.workshopName,
+    claim.workshopRepairEstimate?.status,
+    payment?.status,
+    payment?.providerReference,
+    payment?.paymentId,
+    payment?.workshopName,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  return searchableText.includes(normalizedSearch);
+}
+
+function formatRole(role) {
+  switch (normalizeRole(role)) {
+    case USER_ROLE.Customer:
+      return 'Customer';
+    case USER_ROLE.Officer:
+      return 'Officer';
+    case USER_ROLE.Admin:
+      return 'Admin';
+    case USER_ROLE.PanelWorkshop:
+      return 'Panel Workshop';
+    default:
+      return 'Unknown';
+  }
+}
+
+function getRoleColor(role) {
+  switch (normalizeRole(role)) {
+    case USER_ROLE.Admin:
+      return 'volcano';
+    case USER_ROLE.Officer:
+      return 'blue';
+    case USER_ROLE.PanelWorkshop:
+      return 'green';
+    case USER_ROLE.Customer:
+      return 'purple';
+    default:
+      return 'default';
+  }
+}
+
+function buildUserSummary(users = []) {
+  return {
+    active: users.filter((user) => user.isActive).length,
+    inactive: users.filter((user) => !user.isActive).length,
+    admin: users.filter((user) => normalizeRole(user.role) === USER_ROLE.Admin).length,
+    officer: users.filter((user) => normalizeRole(user.role) === USER_ROLE.Officer).length,
+    panelWorkshop: users.filter((user) => normalizeRole(user.role) === USER_ROLE.PanelWorkshop).length,
+  };
 }
 
 function MetricCard({ label, value, subtitle, icon, accent, background }) {

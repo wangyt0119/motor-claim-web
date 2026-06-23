@@ -1,8 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Alert,
   Avatar,
   Button,
   Card,
+  DatePicker,
   Descriptions,
   Divider,
   Empty,
@@ -32,11 +34,14 @@ import {
   SearchOutlined,
   ToolOutlined,
   UserOutlined,
+  LinkOutlined,
 } from '@ant-design/icons';
 import moment from 'moment';
 import '../styles/MainScreen.css';
 import {
+  createWorkshopClaimLinkRequest,
   getApprovedClaimsForPanelWorkshop,
+  getMyWorkshopClaimLinkRequests,
   submitWorkshopRepairEstimate,
 } from '../services/workshopService';
 import { uploadFileToCloudinary } from '../services/cloudinaryService';
@@ -58,7 +63,11 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   const [submittingEstimate, setSubmittingEstimate] = useState(false);
   const [receiptDocumentFiles, setReceiptDocumentFiles] = useState([]);
   const [supportingDocumentFiles, setSupportingDocumentFiles] = useState([]);
+  const [claimLinkRequests, setClaimLinkRequests] = useState([]);
+  const [claimLinkModalOpen, setClaimLinkModalOpen] = useState(false);
+  const [submittingClaimLink, setSubmittingClaimLink] = useState(false);
   const [estimateForm] = Form.useForm();
+  const [claimLinkForm] = Form.useForm();
 
   useEffect(() => {
     refreshClaims();
@@ -67,8 +76,12 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   async function refreshClaims() {
     setLoading(true);
     try {
-      const result = await getApprovedClaimsForPanelWorkshop();
+      const [result, linkRequests] = await Promise.all([
+        getApprovedClaimsForPanelWorkshop(),
+        getMyWorkshopClaimLinkRequests(),
+      ]);
       setClaims(result);
+      setClaimLinkRequests(linkRequests);
     } catch (error) {
       message.error(
         error?.response?.data?.message ||
@@ -82,16 +95,21 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
     }
   }
 
-  const upcomingClaims = useMemo(
+  const assignedClaims = useMemo(
     () =>
       claims
         .filter((claim) => claim.workshopAppointment?.preferredDate)
         .sort(
           (left, right) =>
-            new Date(left.workshopAppointment.preferredDate).getTime() -
-            new Date(right.workshopAppointment.preferredDate).getTime()
+            new Date(right.workshopAppointment.preferredDate).getTime() -
+            new Date(left.workshopAppointment.preferredDate).getTime()
         ),
     [claims]
+  );
+
+  const upcomingClaims = useMemo(
+    () => assignedClaims.filter((claim) => !isAlreadyAtWorkshop(claim.workshopAppointment)),
+    [assignedClaims]
   );
 
   const todayClaims = useMemo(
@@ -105,10 +123,10 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   const filteredClaims = useMemo(() => {
     const normalizedSearch = searchText.trim().toLowerCase();
     if (!normalizedSearch) {
-      return upcomingClaims;
+      return assignedClaims;
     }
 
-    return upcomingClaims.filter((claim) => {
+    return assignedClaims.filter((claim) => {
       const haystack = [
         claim.id,
         claim.userId,
@@ -127,11 +145,11 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
 
       return haystack.includes(normalizedSearch);
     });
-  }, [searchText, upcomingClaims]);
+  }, [assignedClaims, searchText]);
 
   const columns = [
     {
-      title: 'Customer Booking',
+      title: 'Workshop Assignment',
       key: 'booking',
       width: 260,
       render: (_, claim) => (
@@ -178,14 +196,17 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       width: 170,
       render: (_, claim) =>
         claim.workshopAppointment?.preferredDate
-          ? moment(claim.workshopAppointment.preferredDate).format('DD MMM YYYY')
+          ? `${isAlreadyAtWorkshop(claim.workshopAppointment) ? 'Arrived' : 'Visit'}: ${moment(claim.workshopAppointment.preferredDate).format('DD MMM YYYY')}`
           : 'Not booked',
     },
     {
       title: 'Time Slot',
       key: 'timeSlot',
       width: 150,
-      render: (_, claim) => formatTimeRange(claim.workshopAppointment?.timeSlotStart, claim.workshopAppointment?.timeSlotEnd),
+      render: (_, claim) =>
+        isAlreadyAtWorkshop(claim.workshopAppointment)
+          ? 'Already delivered'
+          : formatTimeRange(claim.workshopAppointment?.timeSlotStart, claim.workshopAppointment?.timeSlotEnd),
     },
     {
       title: 'Actions',
@@ -218,6 +239,9 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
   ];
 
   const submittedEstimateCount = claims.filter((claim) => claim.workshopRepairEstimate).length;
+  const pendingClaimLinkRequestCount = claimLinkRequests.filter(
+    (request) => String(request.status).toLowerCase() === 'pending'
+  ).length;
   const hasSubmittedEstimate = (claim) => Boolean(claim?.workshopRepairEstimate);
 
   return (
@@ -273,7 +297,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                   Welcome back, {currentUser?.fullName || currentUser?.FullName || 'Workshop'}
                 </Title>
                 <Text className="portal-dashboard-description">
-                  Keep track of customer workshop bookings, appointments, and quotation submissions in one easy dashboard.
+                  Keep track of scheduled visits, vehicles already delivered to your workshop, and quotation submissions in one easy dashboard.
                 </Text>
                 <div className="portal-dashboard-chip-row">
                   <div className="portal-dashboard-chip portal-dashboard-chip-workshop">
@@ -307,7 +331,7 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                 <WorkshopMetricCard
                   label="Upcoming Appointments"
                   value={upcomingClaims.length}
-                  subtitle="Bookings already scheduled"
+                  subtitle="Future visits already scheduled"
                   icon={<CalendarOutlined />}
                   background="#fff7ed"
                   accent="#ea580c"
@@ -340,8 +364,8 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                 <Card className="portal-dashboard-card">
                   <div className="portal-dashboard-card-header">
                     <div>
-                      <Title level={4} className="portal-dashboard-card-title">Customer Bookings</Title>
-                      <Text className="portal-dashboard-card-subtitle">Review bookings and upload quotation details for officer review</Text>
+                      <Title level={4} className="portal-dashboard-card-title">Customer Workshop Assignments</Title>
+                      <Text className="portal-dashboard-card-subtitle">Review scheduled visits or already-delivered vehicles, then upload quotation details for officer review</Text>
                     </div>
                   </div>
                   <div className="portal-dashboard-toolbar" style={{ marginBottom: 16 }}>
@@ -356,6 +380,9 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                 />
                     </div>
                     <div className="portal-dashboard-toolbar-main">
+                      <Button type="primary" icon={<LinkOutlined />} onClick={() => setClaimLinkModalOpen(true)}>
+                        Request Claim Link
+                      </Button>
                       <Button icon={<ReloadOutlined />} onClick={refreshClaims} loading={loading}>
                         Refresh
                       </Button>
@@ -380,6 +407,36 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
                 })}
                 locale={{ emptyText: <Empty description="No approved claims are assigned to this workshop yet" /> }}
               />
+                </Card>
+              </div>
+
+              <div className="portal-dashboard-span-12">
+                <Card
+                  className="portal-dashboard-card"
+                  title={`Workshop Link Requests (${pendingClaimLinkRequestCount} pending)`}
+                >
+                  <Table
+                    dataSource={claimLinkRequests}
+                    rowKey="requestId"
+                    pagination={{ pageSize: 5 }}
+                    locale={{ emptyText: <Empty description="No workshop link requests submitted yet" /> }}
+                    columns={[
+                      { title: 'Claim ID', dataIndex: 'claimId', key: 'claimId' },
+                      {
+                        title: 'Arrival Date',
+                        dataIndex: 'arrivalDate',
+                        key: 'arrivalDate',
+                        render: (value) => value ? moment(value).format('DD MMM YYYY') : 'Not available',
+                      },
+                      {
+                        title: 'Status',
+                        dataIndex: 'status',
+                        key: 'status',
+                        render: (value) => <Tag color={getLinkRequestStatusColor(value)}>{value || 'Unknown'}</Tag>,
+                      },
+                      { title: 'Notes', dataIndex: 'notes', key: 'notes', render: (value) => value || 'No notes' },
+                    ]}
+                  />
                 </Card>
               </div>
 
@@ -420,11 +477,15 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
             </Descriptions>
 
             {selectedClaim.workshopAppointment ? (
-              <Card title="Workshop appointment">
+              <Card title={isAlreadyAtWorkshop(selectedClaim.workshopAppointment) ? 'Workshop assignment' : 'Workshop appointment'}>
                 <Descriptions bordered column={1} size="small">
                   <Descriptions.Item label="Workshop">{selectedClaim.workshopAppointment.workshopName}</Descriptions.Item>
-                  <Descriptions.Item label="Date">{moment(selectedClaim.workshopAppointment.preferredDate).format('DD MMM YYYY')}</Descriptions.Item>
-                  <Descriptions.Item label="Time slot">{formatTimeRange(selectedClaim.workshopAppointment.timeSlotStart, selectedClaim.workshopAppointment.timeSlotEnd)}</Descriptions.Item>
+                  <Descriptions.Item label={isAlreadyAtWorkshop(selectedClaim.workshopAppointment) ? 'Arrival date' : 'Date'}>
+                    {moment(selectedClaim.workshopAppointment.preferredDate).format('DD MMM YYYY')}
+                  </Descriptions.Item>
+                  {!isAlreadyAtWorkshop(selectedClaim.workshopAppointment) ? (
+                    <Descriptions.Item label="Time slot">{formatTimeRange(selectedClaim.workshopAppointment.timeSlotStart, selectedClaim.workshopAppointment.timeSlotEnd)}</Descriptions.Item>
+                  ) : null}
                   <Descriptions.Item label="Status">{selectedClaim.workshopAppointment.status || 'Pending'}</Descriptions.Item>
                   <Descriptions.Item label="Notes">{selectedClaim.workshopAppointment.notes || 'No notes'}</Descriptions.Item>
                 </Descriptions>
@@ -498,6 +559,50 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
             <Upload beforeUpload={() => false} fileList={supportingDocumentFiles} onChange={({ fileList }) => setSupportingDocumentFiles(fileList)} multiple>
               <Button icon={<CloudUploadOutlined />}>Choose Supporting Documents</Button>
             </Upload>
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      <Modal
+        open={claimLinkModalOpen}
+        onCancel={closeClaimLinkModal}
+        onOk={handleSubmitClaimLinkRequest}
+        okText="Send Link Request"
+        confirmLoading={submittingClaimLink}
+        title="Request Customer Approval to Link Claim"
+      >
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="Customer confirmation is required"
+          description="Enter the approved claim ID and vehicle arrival details. You can submit a quotation only after the customer accepts the request."
+        />
+        <Form form={claimLinkForm} layout="vertical">
+          <Form.Item
+            name="claimId"
+            label="Claim ID"
+            rules={[{ required: true, message: 'Please enter the claim ID.' }]}
+          >
+            <Input placeholder="Enter the approved customer claim ID" />
+          </Form.Item>
+          <Form.Item
+            name="arrivalDate"
+            label="Vehicle Arrival Date"
+            rules={[{ required: true, message: 'Please select the vehicle arrival date.' }]}
+          >
+            <DatePicker
+              style={{ width: '100%' }}
+              disabledDate={(current) => current && current > moment().endOf('day')}
+            />
+          </Form.Item>
+          <Form.Item name="notes" label="Arrival Notes">
+            <Input.TextArea
+              rows={4}
+              maxLength={1000}
+              showCount
+              placeholder="Optional: add towing or vehicle arrival details"
+            />
           </Form.Item>
         </Form>
       </Modal>
@@ -585,6 +690,58 @@ function PanelWorkshopDashboard({ currentUser, onSignOut }) {
       setSubmittingEstimate(false);
     }
   }
+
+  function closeClaimLinkModal() {
+    setClaimLinkModalOpen(false);
+    claimLinkForm.resetFields();
+  }
+
+  async function handleSubmitClaimLinkRequest() {
+    const values = await claimLinkForm.validateFields();
+
+    setSubmittingClaimLink(true);
+    try {
+      await createWorkshopClaimLinkRequest({
+        claimId: values.claimId.trim(),
+        arrivalDate: values.arrivalDate.format('YYYY-MM-DDT00:00:00'),
+        notes: values.notes?.trim() || null,
+      });
+      message.success('Workshop link request sent. Wait for the customer to accept it before submitting a quotation.');
+      closeClaimLinkModal();
+      await refreshClaims();
+    } catch (error) {
+      message.error(getApiErrorMessage(error, 'Unable to submit this workshop link request.'));
+    } finally {
+      setSubmittingClaimLink(false);
+    }
+  }
+}
+
+function getLinkRequestStatusColor(status) {
+  switch (String(status || '').toLowerCase()) {
+    case 'accepted':
+      return 'green';
+    case 'rejected':
+      return 'red';
+    case 'pending':
+      return 'orange';
+    default:
+      return 'default';
+  }
+}
+
+function getApiErrorMessage(error, fallbackMessage) {
+  return (
+    error?.response?.data?.message ||
+    error?.response?.data?.title ||
+    (typeof error?.response?.data === 'string' ? error.response.data : null) ||
+    error?.message ||
+    fallbackMessage
+  );
+}
+
+function isAlreadyAtWorkshop(appointment) {
+  return String(appointment?.assignmentType || '').toLowerCase() === 'alreadyatworkshop';
 }
 
 function formatTimeRange(start, end) {

@@ -19,6 +19,7 @@ import {
 import {
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DollarOutlined,
   DownloadOutlined,
   EyeOutlined,
   FilePdfOutlined,
@@ -82,7 +83,7 @@ const diagnosticContentStyle = {
   wordBreak: 'break-word',
 };
 
-function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
+function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated, readOnly = false }) {
   const [actionModal, setActionModal] = useState({ open: false, type: null });
   const [estimateActionModal, setEstimateActionModal] = useState({ open: false, type: null });
   const [decisionNote, setDecisionNote] = useState('');
@@ -241,13 +242,8 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
           <Space direction="vertical" size={16} style={{ width: '100%' }}>
             <Card style={{ borderRadius: 16 }}>
               <Space wrap size={[8, 8]} style={{ marginBottom: 12 }}>
-                <Tag color="blue">{claim.type}</Tag>
-                <Tag color={getStatusColor(claim.status)}>{claim.status || 'Unknown'}</Tag>
-                <Tag color={getReviewStatusColor(claim.reviewStatus)}>{formatReviewStatus(claim.reviewStatus)}</Tag>
-                <Tag color={claim.isStpApproved ? 'success' : 'warning'}>
-                  {claim.isStpApproved ? 'STP Passed' : 'Manual Review'}
-                </Tag>
-                <Tag color={claim.isStpApproved ? 'green' : 'orange'}>{formatStpStatus(claim.stpStatus)}</Tag>
+                <Tag color={getClaimDecisionTag(claim).color}>{getClaimDecisionTag(claim).label}</Tag>
+                {claim.isStpApproved ? <Tag color="success">STP Passed</Tag> : null}
               </Space>
 
               <Descriptions title="Claim overview" bordered column={1} size="middle">
@@ -312,25 +308,36 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
               }
               style={{ borderRadius: 16 }}
             >
-              <Space wrap>
-                <Button
-                  type="primary"
-                  style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
-                  onClick={() => setActionModal({ open: true, type: 'approved' })}
-                >
-                  Approve
-                </Button>
-                <Button danger onClick={() => setActionModal({ open: true, type: 'rejected' })}>
-                  Reject
-                </Button>
-                <Button icon={<SendOutlined />} onClick={() => setActionModal({ open: true, type: 'request_info' })}>
-                  Request Reupload / Rewrite
-                </Button>
-              </Space>
-              <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
-                These buttons call your backend review endpoints directly. Use request info when you need a new document
-                upload, a rewritten explanation, or another follow-up before final approval.
-              </Paragraph>
+              {readOnly ? (
+                <Alert
+                  type="info"
+                  showIcon
+                  message="Admin view only"
+                  description="Use the officer portal for claim review decisions and customer update requests."
+                />
+              ) : (
+                <>
+                  <Space wrap>
+                    <Button
+                      type="primary"
+                      style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
+                      onClick={() => setActionModal({ open: true, type: 'approved' })}
+                    >
+                      Approve
+                    </Button>
+                    <Button danger onClick={() => setActionModal({ open: true, type: 'rejected' })}>
+                      Reject
+                    </Button>
+                    <Button icon={<SendOutlined />} onClick={() => setActionModal({ open: true, type: 'request_info' })}>
+                      Request Reupload / Rewrite
+                    </Button>
+                  </Space>
+                  <Paragraph type="secondary" style={{ marginTop: 12, marginBottom: 0 }}>
+                    These buttons call your backend review endpoints directly. Use request info when you need a new document
+                    upload, a rewritten explanation, or another follow-up before final approval.
+                  </Paragraph>
+                </>
+              )}
             </Card>
 
             <Card title={<Space><SafetyCertificateOutlined /><span>STP Validation</span></Space>} style={{ borderRadius: 16 }}>
@@ -338,7 +345,7 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
                 type={claim.isStpApproved ? 'success' : 'warning'}
                 showIcon
                 message={claim.isStpApproved ? 'Claim passed STP validation' : 'Claim needs manual review'}
-                description={`Backend STP status: ${formatStpStatus(claim.stpStatus)}`}
+                // description={`Backend STP status: ${formatStpStatus(claim.stpStatus)}`}
                 style={{ marginBottom: 16 }}
               />
 
@@ -409,8 +416,17 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
                         </div>
 
                         <Descriptions column={1} size="small" bordered labelStyle={diagnosticLabelStyle} contentStyle={diagnosticContentStyle}>
-                          <Descriptions.Item label="Confidence passed">{renderBooleanTag(diagnostic.confidencePassed)}</Descriptions.Item>
+                          <Descriptions.Item label="OCR validation">{renderBooleanTag(getDiagnosticValidationResult(diagnostic))}</Descriptions.Item>
+                          <Descriptions.Item label="OCR read completed">{renderBooleanTag(diagnostic.ocrSucceeded)}</Descriptions.Item>
+                          <Descriptions.Item label="OCR confidence">{renderBooleanTag(diagnostic.confidencePassed)}</Descriptions.Item>
+                          <Descriptions.Item label="Document matched">{renderBooleanTag(diagnostic.isMatched)}</Descriptions.Item>
                           <Descriptions.Item label="Match target">{matchTarget?.value || 'No target'}</Descriptions.Item>
+                          {diagnostic.matchMessage ? (
+                            <Descriptions.Item label="Match note">{diagnostic.matchMessage}</Descriptions.Item>
+                          ) : null}
+                          {diagnostic.errorMessage ? (
+                            <Descriptions.Item label="OCR error">{diagnostic.errorMessage}</Descriptions.Item>
+                          ) : null}
                         </Descriptions>
                       </Card>
                     );
@@ -472,33 +488,60 @@ function ClaimWorkflowDrawer({ claim, open, onClose, onWorkflowUpdated }) {
             {repairEstimate ? (
               <>
                 <WorkshopRepairEstimateCard estimate={repairEstimate} />
-                <Card
-                  title={
-                    <Space>
-                      <SafetyCertificateOutlined />
-                      <span>Workshop Estimate Review</span>
+                {!readOnly ? (
+                  <Card
+                    title={
+                      <Space>
+                        <SafetyCertificateOutlined />
+                        <span>Workshop Estimate Review</span>
+                      </Space>
+                    }
+                    style={{ borderRadius: 16 }}
+                  >
+                    <Space wrap>
+                      <Button
+                        type="primary"
+                        style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
+                        onClick={() => setEstimateActionModal({ open: true, type: 'approve' })}
+                      >
+                        Approve Submission
+                      </Button>
+                      <Button danger onClick={() => setEstimateActionModal({ open: true, type: 'reject' })}>
+                        Reject Submission
+                      </Button>
+                      <Button icon={<SendOutlined />} onClick={() => setEstimateActionModal({ open: true, type: 'request_changes' })}>
+                        Request Changes
+                      </Button>
                     </Space>
-                  }
-                  style={{ borderRadius: 16 }}
-                >
-                  <Space wrap>
-                    <Button
-                      type="primary"
-                      style={{ backgroundColor: '#16a34a', borderColor: '#16a34a' }}
-                      onClick={() => setEstimateActionModal({ open: true, type: 'approve' })}
-                    >
-                      Approve Submission
-                    </Button>
-                    <Button danger onClick={() => setEstimateActionModal({ open: true, type: 'reject' })}>
-                      Reject Submission
-                    </Button>
-                    <Button icon={<SendOutlined />} onClick={() => setEstimateActionModal({ open: true, type: 'request_changes' })}>
-                      Request Changes
-                    </Button>
-                  </Space>
-                </Card>
+                  </Card>
+                ) : null}
               </>
             ) : null}
+
+            <Card title={<Space><DollarOutlined /><span>Payment Progress</span></Space>} style={{ borderRadius: 16 }}>
+              <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="Current stage">
+                  <Tag color={getPaymentProgress(claim).tagColor}>{getPaymentProgress(claim).label}</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Progress note">{getPaymentProgress(claim).description}</Descriptions.Item>
+                <Descriptions.Item label="Payment status">{claim.workshopPayment?.status || claim.paymentStatus || 'Not available yet'}</Descriptions.Item>
+                <Descriptions.Item label="Payment amount">
+                  {claim.workshopPayment
+                    ? `${claim.workshopPayment.currency || 'MYR'} ${Number(claim.workshopPayment.amount || 0).toFixed(2)}`
+                    : 'Not available yet'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Payment method">{claim.workshopPayment?.provider || claim.paymentMethod || 'Not available yet'}</Descriptions.Item>
+                <Descriptions.Item label="Payment reference">{claim.workshopPayment?.providerReference || claim.paymentReference || 'Not available yet'}</Descriptions.Item>
+                <Descriptions.Item label="Paid at">
+                  {claim.workshopPayment?.paidAt || claim.paymentDate
+                    ? moment(claim.workshopPayment?.paidAt || claim.paymentDate).format('DD MMM YYYY, hh:mm A')
+                    : 'Not available yet'}
+                </Descriptions.Item>
+                <Descriptions.Item label="Bank">{claim.workshopPayment?.bankNameSnapshot || 'Not available yet'}</Descriptions.Item>
+                <Descriptions.Item label="Account holder">{claim.workshopPayment?.bankAccountHolderNameSnapshot || 'Not available yet'}</Descriptions.Item>
+                <Descriptions.Item label="Failure reason">{claim.workshopPayment?.failureReason || 'None'}</Descriptions.Item>
+              </Descriptions>
+            </Card>
 
             <Card title={<Space><FileTextOutlined /><span>Uploaded Documents</span></Space>} style={{ borderRadius: 16 }}>
               {claim.documents?.length ? (
@@ -587,6 +630,22 @@ function renderBooleanTag(value) {
   if (value === true) return <Tag color="green">Yes</Tag>;
   if (value === false) return <Tag color="red">No</Tag>;
   return <Tag>Unknown</Tag>;
+}
+
+function getDiagnosticValidationResult(diagnostic) {
+  if (!diagnostic?.provided || !diagnostic?.ocrSucceeded || !diagnostic?.confidencePassed) {
+    return false;
+  }
+
+  if (diagnostic.isMatched === false) {
+    return false;
+  }
+
+  if (diagnostic.isMatched === true) {
+    return true;
+  }
+
+  return null;
 }
 
 function buildCombinedDocumentDiagnostics(claim, diagnostics) {
@@ -765,37 +824,103 @@ function getDocumentIcon(extension) {
   return <FileUnknownOutlined style={{ fontSize: 20, color: '#6b7280' }} />;
 }
 
-function formatStpStatus(status) {
-  return status === null || status === undefined || status === '' ? 'Unknown' : String(status);
-}
+function getClaimDecisionTag(claim) {
+  const status = normalizeStatusValue(claim?.status);
+  const reviewStatus = normalizeStatusValue(claim?.reviewStatus);
 
-function formatReviewStatus(status) {
-  if (!status) {
-    return 'No review status';
+  if (status === 'approved' || reviewStatus === 'approved') {
+    return { label: 'Approved', color: 'green' };
   }
 
-  return String(status)
+  if (status === 'rejected' || reviewStatus === 'rejected') {
+    return { label: 'Rejected', color: 'red' };
+  }
+
+  return { label: 'Manual Review', color: 'orange' };
+}
+
+function normalizeStatusValue(value) {
+  return String(value || '')
     .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .replace(/\b\w/g, (match) => match.toUpperCase());
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ');
 }
 
-function getReviewStatusColor(status) {
-  const normalized = String(status || '').toLowerCase();
-  if (normalized === 'approved') return 'green';
-  if (normalized === 'rejected') return 'red';
-  if (normalized === 'pendingcustomeraction') return 'purple';
-  if (normalized === 'customerresponded') return 'blue';
-  if (normalized === 'pendingmanualreview' || normalized === 'pending') return 'orange';
-  return 'default';
-}
+function getPaymentProgress(claim) {
+  const payment = claim?.workshopPayment || null;
+  const paymentStatus = String(payment?.status || claim?.paymentStatus || '').toLowerCase();
+  const estimateStatus = String(claim?.workshopRepairEstimate?.status || '').toLowerCase();
 
-function getStatusColor(status) {
-  const normalized = String(status || '').toLowerCase();
-  if (normalized === 'approved') return 'green';
-  if (normalized === 'pending') return 'gold';
-  if (['pending manual review', 'pending customer action', 'customer responded'].includes(normalized)) return 'orange';
-  if (normalized === 'rejected') return 'red';
-  return 'default';
+  if (String(claim?.status || '').toLowerCase() === 'withdrawn') {
+    return {
+      label: 'Withdrawn',
+      tagColor: 'default',
+      description: 'This claim was withdrawn, so no payment will be processed.',
+    };
+  }
+
+  if (paymentStatus === 'paid') {
+    return {
+      label: 'Paid',
+      tagColor: 'green',
+      description: 'Workshop payment has been completed.',
+    };
+  }
+
+  if (['failed', 'rejected'].includes(paymentStatus)) {
+    return {
+      label: 'Payment Failed',
+      tagColor: 'red',
+      description: 'Payment was not successful and needs finance or support follow-up.',
+    };
+  }
+
+  if (['pending', 'processing', 'onhold', 'on hold'].includes(paymentStatus)) {
+    return {
+      label: 'Processing',
+      tagColor: 'blue',
+      description: 'Payment is being processed by the workshop payout flow.',
+    };
+  }
+
+  if ((claim?.workshopRepairEstimate?.isStpApproved || estimateStatus === 'approved') && claim?.status === 'Approved') {
+    return {
+      label: 'Awaiting Payout',
+      tagColor: 'cyan',
+      description: 'The workshop quotation has been approved. Payment will be prepared next.',
+    };
+  }
+
+  if (claim?.workshopRepairEstimate) {
+    return {
+      label: 'Quotation Review',
+      tagColor: 'orange',
+      description: 'The workshop quotation has been submitted and is waiting for approval before payment.',
+    };
+  }
+
+  if (claim?.status === 'Approved' && Number(claim?.allClaimType) === 1) {
+    return {
+      label: 'Workshop Required',
+      tagColor: 'gold',
+      description: 'A panel workshop step is required before payment progress can start.',
+    };
+  }
+
+  if (String(claim?.status || '').toLowerCase() === 'rejected') {
+    return {
+      label: 'Not Payable',
+      tagColor: 'red',
+      description: 'This claim was rejected, so no payment will be processed.',
+    };
+  }
+
+  return {
+    label: 'Not Started',
+    tagColor: 'default',
+    description: 'Payment progress will appear after claim approval and workshop processing.',
+  };
 }
 
 function formatTimeSlot(start, end) {

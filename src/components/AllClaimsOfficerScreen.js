@@ -144,7 +144,6 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
           <Tag color={claim.isStpApproved ? 'success' : 'warning'}>
             {claim.isStpApproved ? 'Passed' : 'Manual Review'}
           </Tag>
-          <Text type="secondary">{formatStpStatus(claim.stpStatus)}</Text>
         </Space>
       ),
     },
@@ -348,14 +347,6 @@ function getStatusColor(status) {
     default:
       return 'default';
   }
-}
-
-function formatStpStatus(status) {
-  if (status === null || status === undefined || status === '') {
-    return 'Unknown';
-  }
-
-  return String(status);
 }
 
 function formatEmailStatus(value) {

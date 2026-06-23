@@ -7,7 +7,37 @@ export function mapCoverageFromApi(coverage) {
     userId: coverage.userId ?? coverage.UserId,
     insuredPersonName: coverage.insuredPersonName ?? coverage.InsuredPersonName ?? '',
     vehicleNo: coverage.vehicleNo ?? coverage.VehicleNo ?? '',
+    vehicleMake: coverage.vehicleMake ?? coverage.VehicleMake ?? '',
+    vehicleModel: coverage.vehicleModel ?? coverage.VehicleModel ?? '',
+    year: coverage.year ?? coverage.Year ?? '',
+    modelType: coverage.modelType ?? coverage.ModelType ?? '',
     coverageType: coverage.coverageType ?? coverage.CoverageType ?? '',
+    remainingCoverageAmount:
+      Number(
+        coverage.remainingCoverageAmount ??
+          coverage.RemainingCoverageAmount ??
+          coverage.coverageAmount ??
+          coverage.CoverageAmount ??
+          0
+      ),
+    windscreenCoverageLimitAmount:
+      Number(
+        coverage.windscreenCoverageLimitAmount ??
+          coverage.WindscreenCoverageLimitAmount ??
+          0
+      ),
+    windscreenUsedClaimAmount:
+      Number(
+        coverage.windscreenUsedClaimAmount ??
+          coverage.WindscreenUsedClaimAmount ??
+          0
+      ),
+    windscreenRemainingCoverageAmount:
+      Number(
+        coverage.windscreenRemainingCoverageAmount ??
+          coverage.WindscreenRemainingCoverageAmount ??
+          0
+      ),
     authorizedDriver: coverage.authorizedDriver ?? coverage.AuthorizedDriver ?? '',
     effectiveDate: coverage.effectiveDate ?? coverage.EffectiveDate,
     expiryDate: coverage.expiryDate ?? coverage.ExpiryDate,
@@ -78,6 +108,8 @@ export function mapClaimFromApi(claim) {
     requestedAt: claim.requestedAt ?? claim.RequestedAt ?? null,
     respondedAt: claim.respondedAt ?? claim.RespondedAt ?? null,
     decidedAt: claim.decidedAt ?? claim.DecidedAt ?? null,
+    withdrawnAt: claim.withdrawnAt ?? claim.WithdrawnAt ?? null,
+    withdrawalReason: claim.withdrawalReason ?? claim.WithdrawalReason ?? null,
     reviewedByUserId: claim.reviewedByUserId ?? claim.ReviewedByUserId ?? null,
     workshopAppointment: mapWorkshopAppointment(claim.workshopAppointment ?? claim.WorkshopAppointment ?? null),
     workshopRepairEstimate: mapWorkshopRepairEstimate(claim.workshopRepairEstimate ?? claim.WorkshopRepairEstimate ?? null),
@@ -229,6 +261,8 @@ function normalizeStpStatus(value) {
 }
 
 function buildClaimDocuments(claim) {
+  const motorClaimType = Number(claim.motorClaimType ?? claim.MotorClaimType);
+  const isWindscreenClaim = motorClaimType === 3;
   const entries = [
     ['Police report', claim.policeReportDocument ?? claim.PoliceReportDocument],
     ['Vehicle ownership certificate', claim.vehicleOwnershipCertificateDocument ?? claim.VehicleOwnershipCertificateDocument],
@@ -236,10 +270,16 @@ function buildClaimDocuments(claim) {
     ['Identity document back', claim.identityDocumentBack ?? claim.IdentityDocumentBack],
     ['Driving license front', claim.drivingLicenseFront ?? claim.DrivingLicenseFront],
     ['Driving license back', claim.drivingLicenseBack ?? claim.DrivingLicenseBack],
-    ['Vehicle damage front left', claim.vehicleDamageFrontLeftDocument ?? claim.VehicleDamageFrontLeftDocument],
-    ['Vehicle damage front right', claim.vehicleDamageFrontRightDocument ?? claim.VehicleDamageFrontRightDocument],
-    ['Vehicle damage rear left', claim.vehicleDamageRearLeftDocument ?? claim.VehicleDamageRearLeftDocument],
-    ['Vehicle damage rear right', claim.vehicleDamageRearRightDocument ?? claim.VehicleDamageRearRightDocument],
+    [isWindscreenClaim ? 'Windscreen damage photo' : 'Vehicle damage front left', claim.vehicleDamageFrontLeftDocument ?? claim.VehicleDamageFrontLeftDocument],
+    ...(
+      isWindscreenClaim
+        ? []
+        : [
+            ['Vehicle damage front right', claim.vehicleDamageFrontRightDocument ?? claim.VehicleDamageFrontRightDocument],
+            ['Vehicle damage rear left', claim.vehicleDamageRearLeftDocument ?? claim.VehicleDamageRearLeftDocument],
+            ['Vehicle damage rear right', claim.vehicleDamageRearRightDocument ?? claim.VehicleDamageRearRightDocument],
+          ]
+    ),
   ];
 
   return entries
@@ -269,6 +309,7 @@ function mapWorkshopAppointment(appointment) {
     timeSlotStart: appointment.timeSlotStart ?? appointment.TimeSlotStart ?? null,
     timeSlotEnd: appointment.timeSlotEnd ?? appointment.TimeSlotEnd ?? null,
     status: appointment.status ?? appointment.Status ?? '',
+    assignmentType: appointment.assignmentType ?? appointment.AssignmentType ?? '',
     notes: appointment.notes ?? appointment.Notes ?? null,
     createdAt: appointment.createdAt ?? appointment.CreatedAt ?? null,
   };
@@ -396,6 +437,10 @@ function getClaimTypeLabel(allClaimType, motorClaimType) {
 
     if (Number(motorClaimType) === 2) {
       return 'Vehicle Got Stolen';
+    }
+
+    if (Number(motorClaimType) === 3) {
+      return 'Windscreen';
     }
 
     return 'Vehicle Claim';

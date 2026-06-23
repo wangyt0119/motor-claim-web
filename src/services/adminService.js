@@ -1,4 +1,5 @@
 import apiClient from './apiClient';
+import { normalizeRole } from '../constants/userRoles';
 
 function normalizeUsageStat(item) {
   return {
@@ -66,4 +67,61 @@ export async function exportSystemMonitoringLogs(params = {}) {
   const fileName = match?.[1] || `system-activity-logs-${Date.now()}.csv`;
 
   return { blob, fileName };
+}
+
+function normalizeAdminUser(item) {
+  if (!item || typeof item !== 'object') {
+    return null;
+  }
+
+  const workshop = item.workshop ?? item.Workshop ?? null;
+
+  return {
+    userId: item.userId ?? item.UserId ?? item.id ?? item.Id ?? null,
+    fullName: item.fullName ?? item.FullName ?? item.name ?? item.Name ?? '',
+    email: item.email ?? item.Email ?? '',
+    role: normalizeRole(item.role ?? item.Role ?? null),
+    roleName: item.roleName ?? item.RoleName ?? item.roleText ?? item.RoleText ?? null,
+    workshopId: item.workshopId ?? item.WorkshopId ?? workshop?.workshopId ?? workshop?.WorkshopId ?? null,
+    workshopName: item.workshopName ?? item.WorkshopName ?? workshop?.name ?? workshop?.Name ?? '',
+    isActive: Boolean(item.isActive ?? item.IsActive ?? true),
+    createdAt: item.createdAt ?? item.CreatedAt ?? null,
+    updatedAt: item.updatedAt ?? item.UpdatedAt ?? null,
+  };
+}
+
+function normalizeAdminUserPayload(data) {
+  const payload = data?.data ?? data ?? {};
+  return normalizeAdminUser(payload);
+}
+
+export async function getAdminUsers(params = {}) {
+  const response = await apiClient.get('/admin/users', { params });
+  const payload = response.data?.data ?? response.data ?? [];
+  return Array.isArray(payload) ? payload.map(normalizeAdminUser).filter(Boolean) : [];
+}
+
+export async function getAdminUserById(userId) {
+  const response = await apiClient.get(`/admin/users/${userId}`);
+  return normalizeAdminUserPayload(response.data);
+}
+
+export async function createAdminUser(payload) {
+  const response = await apiClient.post('/admin/users', payload);
+  return normalizeAdminUserPayload(response.data);
+}
+
+export async function updateAdminUser(userId, payload) {
+  const response = await apiClient.put(`/admin/users/${userId}`, payload);
+  return normalizeAdminUserPayload(response.data);
+}
+
+export async function activateAdminUser(userId) {
+  const response = await apiClient.post(`/admin/users/${userId}/activate`);
+  return normalizeAdminUserPayload(response.data);
+}
+
+export async function deactivateAdminUser(userId) {
+  const response = await apiClient.post(`/admin/users/${userId}/deactivate`);
+  return normalizeAdminUserPayload(response.data);
 }
