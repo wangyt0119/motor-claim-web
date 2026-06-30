@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Avatar, Button, Card, DatePicker, Divider, Empty, Form, Input, Layout, Menu, Modal, Popconfirm, Select, Space, Table, Tag, Typography, message } from 'antd';
+import { Avatar, Button, Card, Col, DatePicker, Divider, Empty, Form, Input, Layout, Menu, Modal, Popconfirm, Row, Select, Space, Table, Tag, Typography, message } from 'antd';
 import {
   AreaChartOutlined,
   ClockCircleOutlined,
@@ -21,6 +21,7 @@ import {
   createAdminUser,
   deactivateAdminUser,
   getAdminUsers,
+  getAdminUserById,
   getSystemMonitoringDashboard,
   getSystemMonitoringLogs,
   updateAdminUser,
@@ -34,10 +35,41 @@ const { Title, Text } = Typography;
 const { RangePicker } = DatePicker;
 
 const roleOptions = [
+  { label: 'Customer', value: USER_ROLE.Customer },
   { label: 'Officer', value: USER_ROLE.Officer },
   { label: 'Admin', value: USER_ROLE.Admin },
   { label: 'Panel Workshop', value: USER_ROLE.PanelWorkshop },
 ];
+
+const internalRoleOptions = roleOptions.filter((option) => option.value !== USER_ROLE.Customer);
+
+const mobileCountryOptions = [
+  { label: 'Singapore', value: 1 },
+  { label: 'Cambodia', value: 2 },
+  { label: 'Indonesia', value: 3 },
+  { label: 'Malaysia', value: 4 },
+  { label: 'Philippines', value: 5 },
+];
+
+function getErrorMessage(error, fallbackMessage) {
+  const data = error?.response?.data;
+
+  if (typeof data === 'string') {
+    return data;
+  }
+
+  const validationMessages = data?.errors
+    ? Object.values(data.errors).flat().filter(Boolean)
+    : [];
+
+  return (
+    validationMessages[0] ||
+    data?.message ||
+    data?.title ||
+    error?.message ||
+    fallbackMessage
+  );
+}
 
 function AdminDashboard({ currentAdmin, onSignOut }) {
   const [userForm] = Form.useForm();
@@ -48,6 +80,8 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
   const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [savingUser, setSavingUser] = useState(false);
   const [userModalOpen, setUserModalOpen] = useState(false);
+  const [userSaveConfirmOpen, setUserSaveConfirmOpen] = useState(false);
+  const [pendingUserValues, setPendingUserValues] = useState(null);
   const [editingUser, setEditingUser] = useState(null);
   const [userRoleFilter, setUserRoleFilter] = useState('');
   const [userStatusFilter, setUserStatusFilter] = useState('');
@@ -99,9 +133,9 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
     } catch (error) {
       setOperations((current) => ({
         ...current,
-        error: error?.response?.data?.message || error?.message || 'Unable to load operational data.',
+        error: getErrorMessage(error, 'Unable to load operational data.'),
       }));
-      message.error(error?.response?.data?.message || error?.message || 'Unable to load operational data.');
+      message.error(getErrorMessage(error, 'Unable to load operational data.'));
     } finally {
       setOperationsLoading(false);
     }
@@ -118,7 +152,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
       });
       setAdminUsers(result);
     } catch (error) {
-      message.error(error?.response?.data?.message || error?.message || 'Unable to load internal users.');
+      message.error(getErrorMessage(error, 'Unable to load internal users.'));
     } finally {
       setAdminUsersLoading(false);
     }
@@ -158,7 +192,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
       const result = await getSystemMonitoringDashboard(buildMonitoringParams({ dateRange }));
       setDashboard(result);
     } catch (error) {
-      message.error(error?.response?.data?.message || error?.message || 'Unable to load monitoring dashboard.');
+      message.error(getErrorMessage(error, 'Unable to load monitoring dashboard.'));
     } finally {
       setLoadingDashboard(false);
     }
@@ -178,16 +212,21 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
       );
       setLogs(result);
     } catch (error) {
-      message.error(error?.response?.data?.message || error?.message || 'Unable to load monitoring logs.');
+      message.error(getErrorMessage(error, 'Unable to load monitoring logs.'));
     } finally {
       setLoadingLogs(false);
     }
   }
 
   async function handleExportLogs() {
+    if (!logs.length) {
+      message.warning('No monitoring logs to export.');
+      return;
+    }
+
     setExportingLogs(true);
     try {
-      const blob = createMonitoringLogsPdf({
+      const blob = createMonitoringLogsCsv({
         logs,
         currentAdmin,
         dateRange,
@@ -195,7 +234,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
         userRoleFilter: logUserRoleFilter,
         userIdFilter,
       });
-      const fileName = `system-activity-logs-${moment().format('YYYYMMDD-HHmmss')}.pdf`;
+      const fileName = `system-activity-logs-${moment().format('YYYYMMDD-HHmmss')}.csv`;
 
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
@@ -205,9 +244,9 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      message.success('Monitoring logs exported as PDF.');
+      message.success('Monitoring logs exported as Excel file.');
     } catch (error) {
-      message.error(error?.response?.data?.message || error?.message || 'Unable to export monitoring logs as PDF.');
+      message.error(getErrorMessage(error, 'Unable to export monitoring logs.'));
     } finally {
       setExportingLogs(false);
     }
@@ -405,43 +444,75 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
       role: USER_ROLE.Officer,
       isActive: true,
       workshopId: null,
+      mobileCountry: 4,
+      mobileNumber: '',
     });
     setUserModalOpen(true);
   }
 
-  function openEditUserModal(user) {
-    setEditingUser(user);
+  async function openEditUserModal(user) {
+    let userProfile = user;
+
+    if (user?.userId) {
+      try {
+        userProfile = await getAdminUserById(user.userId);
+      } catch (error) {
+        message.warning(getErrorMessage(error, 'Unable to load the latest user details. Using the current row data.'));
+      }
+    }
+
+    setEditingUser(userProfile);
     userForm.resetFields();
     userForm.setFieldsValue({
-      fullName: user.fullName,
-      email: user.email,
-      role: normalizeRole(user.role),
-      workshopId: user.workshopId || null,
-      isActive: user.isActive,
+      fullName: userProfile.fullName,
+      email: userProfile.email,
+      mobileCountry: userProfile.mobileCountry || 4,
+      mobileNumber: userProfile.mobileNumber || 'Not provided',
+      role: normalizeRole(userProfile.role),
+      workshopId: userProfile.workshopId || null,
+      isActive: userProfile.isActive,
     });
     setUserModalOpen(true);
   }
 
   function closeUserModal() {
     setUserModalOpen(false);
+    setUserSaveConfirmOpen(false);
+    setPendingUserValues(null);
     setEditingUser(null);
     userForm.resetFields();
   }
 
   async function handleSaveUser() {
-    const values = await userForm.validateFields();
+    let values;
+
+    try {
+      values = await userForm.validateFields();
+    } catch (error) {
+      message.warning('Please complete the required user details before saving.');
+      userForm.scrollToField(error?.errorFields?.[0]?.name);
+      return;
+    }
+
+    setPendingUserValues(values);
+    setUserSaveConfirmOpen(true);
+  }
+
+  async function submitUserForm(values = pendingUserValues) {
+    if (!values) {
+      return;
+    }
+
     const role = normalizeRole(values.role);
     const payload = {
       fullName: values.fullName,
       email: values.email,
+      mobileCountry: values.mobileCountry,
+      mobileNumber: values.mobileNumber,
       role,
       workshopId: role === USER_ROLE.PanelWorkshop ? values.workshopId : null,
       isActive: Boolean(values.isActive),
     };
-
-    if (values.password) {
-      payload.password = values.password;
-    }
 
     setSavingUser(true);
     try {
@@ -453,10 +524,12 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
         message.success('Internal user created.');
       }
 
+      setUserSaveConfirmOpen(false);
+      setPendingUserValues(null);
       closeUserModal();
       refreshAdminUsers();
     } catch (error) {
-      message.error(error?.response?.data?.message || error?.message || 'Unable to save user account.');
+      message.error(getErrorMessage(error, 'Unable to save user account.'));
     } finally {
       setSavingUser(false);
     }
@@ -474,7 +547,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
 
       refreshAdminUsers();
     } catch (error) {
-      message.error(error?.response?.data?.message || error?.message || 'Unable to update user status.');
+      message.error(getErrorMessage(error, 'Unable to update user status.'));
     }
   }
 
@@ -928,16 +1001,28 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
             <Form.Item name="email" label="Email" rules={[{ required: true, message: 'Email is required.' }, { type: 'email', message: 'Enter a valid email.' }]}>
               <Input placeholder="name@etiqa.com.my" />
             </Form.Item>
-            {/* <Form.Item
-              name="password"
-              label={editingUser ? 'New Password' : 'Password'}
-              rules={editingUser ? [] : [{ required: true, message: 'Password is required.' }]}
-              extra={editingUser ? 'Leave blank to keep the current password.' : null}
-            >
-              <Input.Password placeholder={editingUser ? 'Optional new password' : 'Create a password'} />
-            </Form.Item> */}
+            <Row gutter={12}>
+              <Col span={10}>
+                <Form.Item name="mobileCountry" label="Mobile Country" rules={[{ required: true, message: 'Mobile country is required.' }]}>
+                  <Select options={mobileCountryOptions} />
+                </Form.Item>
+              </Col>
+              <Col span={14}>
+                <Form.Item name="mobileNumber" label="Mobile Number" rules={[{ required: true, message: 'Mobile number is required.' }]}>
+                  <Input placeholder="Mobile number" />
+                </Form.Item>
+              </Col>
+            </Row>
             <Form.Item name="role" label="Role" rules={[{ required: true, message: 'Role is required.' }]}>
-              <Select options={roleOptions} placeholder="Select role" />
+              <Select
+                options={editingUser ? roleOptions : internalRoleOptions}
+                placeholder="Select role"
+                onChange={(value) => {
+                  if (normalizeRole(value) !== USER_ROLE.PanelWorkshop) {
+                    userForm.setFieldValue('workshopId', null);
+                  }
+                }}
+              />
             </Form.Item>
             <Form.Item shouldUpdate={(previous, current) => previous.role !== current.role} noStyle>
               {({ getFieldValue }) => {
@@ -965,6 +1050,23 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
               />
             </Form.Item>
           </Form>
+        </Modal>
+
+        <Modal
+          open={userSaveConfirmOpen}
+          title={editingUser ? 'Confirm User Changes' : 'Confirm User Creation'}
+          onCancel={() => setUserSaveConfirmOpen(false)}
+          onOk={() => submitUserForm()}
+          okText={editingUser ? 'Save Changes' : 'Create User'}
+          cancelText="Cancel"
+          confirmLoading={savingUser}
+          zIndex={3000}
+        >
+          <Text>
+            {editingUser
+              ? 'Are you sure you want to save these user account changes?'
+              : 'Are you sure you want to create this user account?'}
+          </Text>
         </Modal>
       </div>
     );
@@ -1006,7 +1108,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
         <Card className="portal-dashboard-card">
           <div className="portal-dashboard-toolbar">
             <div className="portal-dashboard-toolbar-main">
-            <RangePicker showTime value={dateRange} onChange={(value) => setDateRange(value || [])} />
+            <RangePicker value={dateRange} onChange={(value) => setDateRange(normalizeMonitoringDateRange(value))} />
             <Select allowClear placeholder="Module" style={{ width: 180 }} options={moduleOptions} value={moduleFilter || undefined} onChange={(value) => setModuleFilter(value || '')} />
             <Select
               allowClear
@@ -1025,7 +1127,7 @@ function AdminDashboard({ currentAdmin, onSignOut }) {
             </div>
             <div className="portal-dashboard-toolbar-main">
             <Button type="primary" onClick={refreshLogs} loading={loadingLogs}>Apply Filters</Button>
-            <Button icon={<DownloadOutlined />} onClick={handleExportLogs} loading={exportingLogs}>Export PDF</Button>
+            <Button icon={<DownloadOutlined />} onClick={handleExportLogs} loading={exportingLogs} disabled={loadingLogs}>Export</Button>
             </div>
           </div>
         </Card>
@@ -1327,10 +1429,12 @@ function MetricCard({ label, value, subtitle, icon, accent, background }) {
 
 function buildMonitoringParams({ dateRange = [], module = null, userRole = null, userId = null, take = null } = {}) {
   const [fromDate, toDate] = Array.isArray(dateRange) ? dateRange : [];
+  const fromMoment = normalizePickerMoment(fromDate);
+  const toMoment = normalizePickerMoment(toDate);
 
   return {
-    fromUtc: fromDate ? moment(fromDate).toISOString() : undefined,
-    toUtc: toDate ? moment(toDate).toISOString() : undefined,
+    fromUtc: fromMoment?.isValid() ? fromMoment.toISOString() : undefined,
+    toUtc: toMoment?.isValid() ? toMoment.toISOString() : undefined,
     module: module || undefined,
     userRole: userRole || undefined,
     userId: userId || undefined,
@@ -1338,174 +1442,95 @@ function buildMonitoringParams({ dateRange = [], module = null, userRole = null,
   };
 }
 
-function createMonitoringLogsPdf({ logs = [], currentAdmin, dateRange = [], moduleFilter, userRoleFilter, userIdFilter }) {
-  const escapePdfText = (value) => String(value ?? '')
-    .replace(/\\/g, '\\\\')
-    .replace(/\(/g, '\\(')
-    .replace(/\)/g, '\\)');
+function normalizeMonitoringDateRange(value) {
+  if (!Array.isArray(value) || value.length !== 2 || !value[0] || !value[1]) {
+    return [];
+  }
 
-  const wrapText = (text, maxLength) => {
-    const normalized = String(text ?? '').replace(/\s+/g, ' ').trim();
+  return [
+    value[0].startOf ? value[0].startOf('day') : moment(value[0]).startOf('day'),
+    value[1].endOf ? value[1].endOf('day') : moment(value[1]).endOf('day'),
+  ];
+}
 
-    if (!normalized) {
-      return ['-'];
-    }
+function normalizePickerMoment(value) {
+  if (!value) {
+    return null;
+  }
 
-    const words = normalized.split(' ');
-    const lines = [];
-    let currentLine = '';
+  if (moment.isMoment(value)) {
+    return value.clone();
+  }
 
-    words.forEach((word) => {
-      const nextLine = currentLine ? `${currentLine} ${word}` : word;
+  if (typeof value.toDate === 'function') {
+    return moment(value.toDate());
+  }
 
-      if (nextLine.length <= maxLength) {
-        currentLine = nextLine;
-        return;
-      }
+  return moment(value);
+}
 
-      if (currentLine) {
-        lines.push(currentLine);
-      }
+function formatMonitoringDateRange(dateRange = []) {
+  const [fromDate, toDate] = Array.isArray(dateRange) ? dateRange : [];
+  const fromMoment = normalizePickerMoment(fromDate);
+  const toMoment = normalizePickerMoment(toDate);
 
-      if (word.length > maxLength) {
-        for (let index = 0; index < word.length; index += maxLength) {
-          lines.push(word.slice(index, index + maxLength));
-        }
-        currentLine = '';
-        return;
-      }
+  if (fromMoment?.isValid() && toMoment?.isValid()) {
+    return `${fromMoment.format('DD MMM YYYY HH:mm')} - ${toMoment.format('DD MMM YYYY HH:mm')}`;
+  }
 
-      currentLine = word;
-    });
+  return 'All dates';
+}
 
-    if (currentLine) {
-      lines.push(currentLine);
-    }
-
-    return lines.length ? lines : ['-'];
+function createMonitoringLogsCsv({ logs = [], currentAdmin, dateRange = [], moduleFilter, userRoleFilter, userIdFilter }) {
+  const escapeCsv = (value) => {
+    const text = String(value ?? '');
+    return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
   };
 
-  const formatRange = () => {
-    const [fromDate, toDate] = Array.isArray(dateRange) ? dateRange : [];
-
-    if (fromDate && toDate && moment.isMoment(fromDate) && moment.isMoment(toDate)) {
-      return `${fromDate.format('DD MMM YYYY HH:mm')} - ${toDate.format('DD MMM YYYY HH:mm')}`;
-    }
-
-    return 'All dates';
-  };
-
-  const lines = [
-    'System Activity Logs',
-    `Generated: ${moment().format('DD MMM YYYY, hh:mm A')}`,
-    `Prepared by: ${currentAdmin?.fullName || currentAdmin?.FullName || currentAdmin?.email || currentAdmin?.Email || 'Admin'}`,
-    `Date Range: ${formatRange()}`,
-    `Module Filter: ${moduleFilter || 'All modules'}`,
-    `Role Filter: ${userRoleFilter || 'All roles'}`,
-    `User Filter: ${userIdFilter || 'All users'}`,
-    `Total Logs: ${logs.length}`,
-    '',
+  const rows = [
+    ['System Activity Logs'],
+    ['Generated', moment().format('DD MMM YYYY, hh:mm A')],
+    ['Prepared By', currentAdmin?.fullName || currentAdmin?.FullName || currentAdmin?.email || currentAdmin?.Email || 'Admin'],
+    ['Date Range', formatMonitoringDateRange(dateRange)],
+    ['Module Filter', moduleFilter || 'All modules'],
+    ['Role Filter', userRoleFilter || 'All roles'],
+    ['User Filter', userIdFilter || 'All users'],
+    ['Total Logs', logs.length],
+    [],
+    [
+      'Created At',
+      'Module',
+      'Action',
+      'Method',
+      'Path',
+      'User Email',
+      'User Role',
+      'Status Code',
+      'Result',
+      'Duration (ms)',
+      'IP Address',
+      'Query String',
+      'Error Message',
+    ],
+    ...logs.map((log) => [
+      log.createdAt ? moment(log.createdAt).format('YYYY-MM-DD HH:mm:ss') : '',
+      log.module || '',
+      log.action || '',
+      log.httpMethod || '',
+      log.path || '',
+      log.userEmail || 'System / anonymous',
+      log.userRole || '',
+      log.statusCode || 0,
+      log.isSuccess ? 'Success' : 'Failed',
+      log.durationMs || 0,
+      log.ipAddress || '',
+      log.queryString || '',
+      log.errorMessage || '',
+    ]),
   ];
 
-  if (!logs.length) {
-    lines.push('No monitoring logs found for the selected filters.');
-  } else {
-    logs.forEach((log, index) => {
-      lines.push(`Log ${index + 1}`);
-      lines.push(`Time: ${log.createdAt ? moment(log.createdAt).format('DD MMM YYYY, hh:mm A') : 'Not available'}`);
-      lines.push(`Module: ${log.module || 'Unknown'}`);
-      lines.push(`Action: ${log.action || '-'}`);
-      lines.push(`Method: ${log.httpMethod || 'GET'}`);
-      lines.push(`Path: ${log.path || '-'}`);
-      lines.push(`User: ${log.userEmail || 'System / anonymous'} (${log.userRole || 'No role'})`);
-      lines.push(`Status: ${log.statusCode || 0} ${log.isSuccess ? '[Success]' : '[Failed]'}`);
-      lines.push(`Duration: ${log.durationMs || 0} ms`);
-      lines.push(`IP Address: ${log.ipAddress || '-'}`);
-
-      if (log.queryString) {
-        lines.push(...wrapText(`Query: ${log.queryString}`, 92));
-      }
-
-      if (log.errorMessage) {
-        lines.push(...wrapText(`Error: ${log.errorMessage}`, 92));
-      }
-
-      lines.push('');
-    });
-  }
-
-  const pageWidth = 595;
-  const pageHeight = 842;
-  const marginLeft = 40;
-  const marginTop = 44;
-  const lineHeight = 14;
-  const fontSize = 10;
-  const usableLinesPerPage = Math.floor((pageHeight - marginTop - 40) / lineHeight);
-  const pageChunks = [];
-
-  for (let index = 0; index < lines.length; index += usableLinesPerPage) {
-    pageChunks.push(lines.slice(index, index + usableLinesPerPage));
-  }
-
-  const objects = [];
-  const addObject = (content) => {
-    objects.push(content);
-    return objects.length;
-  };
-
-  const fontObjectId = addObject('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>');
-  const pageObjectIds = [];
-
-  pageChunks.forEach((pageLines) => {
-    const contentLines = ['BT', `/F1 ${fontSize} Tf`];
-    let y = pageHeight - marginTop;
-
-    pageLines.forEach((line) => {
-      contentLines.push(`1 0 0 1 ${marginLeft} ${y} Tm (${escapePdfText(line)}) Tj`);
-      y -= lineHeight;
-    });
-
-    contentLines.push('ET');
-
-    const stream = contentLines.join('\n');
-    const contentObjectId = addObject(`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`);
-    const pageObjectId = addObject(
-      `<< /Type /Page /Parent PAGES_REF /MediaBox [0 0 ${pageWidth} ${pageHeight}] /Resources << /Font << /F1 ${fontObjectId} 0 R >> >> /Contents ${contentObjectId} 0 R >>`
-    );
-
-    pageObjectIds.push(pageObjectId);
-  });
-
-  const pagesObjectId = addObject(
-    `<< /Type /Pages /Kids [${pageObjectIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageObjectIds.length} >>`
-  );
-
-  pageObjectIds.forEach((pageObjectId) => {
-    objects[pageObjectId - 1] = objects[pageObjectId - 1].replace('PAGES_REF', `${pagesObjectId} 0 R`);
-  });
-
-  const catalogObjectId = addObject(`<< /Type /Catalog /Pages ${pagesObjectId} 0 R >>`);
-
-  let pdf = '%PDF-1.4\n';
-  const offsets = [0];
-
-  objects.forEach((objectContent, index) => {
-    offsets[index + 1] = pdf.length;
-    pdf += `${index + 1} 0 obj\n${objectContent}\nendobj\n`;
-  });
-
-  const xrefOffset = pdf.length;
-  pdf += `xref\n0 ${objects.length + 1}\n`;
-  pdf += '0000000000 65535 f \n';
-
-  for (let index = 1; index <= objects.length; index += 1) {
-    pdf += `${String(offsets[index]).padStart(10, '0')} 00000 n \n`;
-  }
-
-  pdf += `trailer\n<< /Size ${objects.length + 1} /Root ${catalogObjectId} 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
-
-  return new Blob([pdf], { type: 'application/pdf' });
+  const csv = rows.map((row) => row.map(escapeCsv).join(',')).join('\r\n');
+  return new Blob([`\uFEFF${csv}`], { type: 'text/csv;charset=utf-8;' });
 }
 
 export default AdminDashboard;
-

@@ -35,19 +35,20 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
   const [isLoadingClaims, setIsLoadingClaims] = useState(true);
   const [hasGeneratedReport, setHasGeneratedReport] = useState(false);
   const [generatedAt, setGeneratedAt] = useState(null);
+  const [generatedReportData, setGeneratedReportData] = useState(null);
   const [loadingError, setLoadingError] = useState(null);
   const [amountSliderMax, setAmountSliderMax] = useState(50000);
 
   const usingProvidedClaims = Array.isArray(providedClaims);
 
-  const approvedReportClaims = useMemo(
-    () => allClaims.filter(isReportApprovedClaim),
+  const reportClaims = useMemo(
+    () => allClaims.filter(Boolean),
     [allClaims]
   );
 
   const statusOptions = useMemo(
-    () => ['All', ...new Set(approvedReportClaims.map((claim) => claim.status).filter(Boolean))],
-    [approvedReportClaims]
+    () => ['All', ...new Set(reportClaims.map((claim) => claim.status).filter(Boolean))],
+    [reportClaims]
   );
 
   const pickerValue = useMemo(
@@ -75,7 +76,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
 
     const nextClaims = providedClaims || [];
     setAllClaims(nextClaims);
-    updateAmountBounds(nextClaims.filter(isReportApprovedClaim));
+    updateAmountBounds(nextClaims.filter(Boolean));
     setLoadingError(null);
     setIsLoadingClaims(Boolean(loading));
   }, [providedClaims, loading, usingProvidedClaims]);
@@ -91,7 +92,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
       try {
         const claims = await getAllClaims();
         setAllClaims(claims);
-        updateAmountBounds(claims.filter(isReportApprovedClaim));
+        updateAmountBounds(claims.filter(Boolean));
       } catch (error) {
         setLoadingError('Unable to load claims for reporting.');
         notification.error({
@@ -108,15 +109,8 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
     return undefined;
   }, [usingProvidedClaims]);
 
-  useEffect(() => {
-    if (!isLoadingClaims && !loadingError && allClaims.length > 0 && !hasGeneratedReport) {
-      setGeneratedAt(new Date());
-      setHasGeneratedReport(true);
-    }
-  }, [allClaims.length, hasGeneratedReport, isLoadingClaims, loadingError]);
-
   const currentReportData = useMemo(() => {
-    const filteredClaims = approvedReportClaims.filter((claim) => {
+    const filteredClaims = reportClaims.filter((claim) => {
       const claimDateSource = claim.incidentDate || claim.createdAt || claim.date;
       const claimDate = normalizeClaimMoment(claimDateSource);
       const dateInRange = claimDate.isValid()
@@ -167,8 +161,24 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
       manualReviewCount,
       pendingCustomerActionCount,
       generatedAt,
+      startDate: startDate.clone(),
+      endDate: endDate.clone(),
+      selectedStatus,
+      amountRange: [...amountRange],
     };
-  }, [approvedReportClaims, amountRange, endDate, generatedAt, selectedStatus, startDate]);
+  }, [amountRange, endDate, generatedAt, reportClaims, selectedStatus, startDate]);
+
+  useEffect(() => {
+    if (!isLoadingClaims && !loadingError && allClaims.length > 0 && !hasGeneratedReport) {
+      const nextGeneratedAt = new Date();
+      setGeneratedAt(nextGeneratedAt);
+      setGeneratedReportData({
+        ...currentReportData,
+        generatedAt: nextGeneratedAt,
+      });
+      setHasGeneratedReport(true);
+    }
+  }, [allClaims.length, currentReportData, hasGeneratedReport, isLoadingClaims, loadingError]);
 
   // Build amount range field
   const buildAmountRangeField = () => (
@@ -222,8 +232,13 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
 
   // Generate report function
   const generateReport = () => {
+    const nextGeneratedAt = new Date();
     setIsGenerating(true);
-    setGeneratedAt(new Date());
+    setGeneratedAt(nextGeneratedAt);
+    setGeneratedReportData({
+      ...currentReportData,
+      generatedAt: nextGeneratedAt,
+    });
     setHasGeneratedReport(true);
     window.setTimeout(() => {
       setIsGenerating(false);
@@ -232,7 +247,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
   
   // Export report function
   const exportReport = () => {
-    if (!hasGeneratedReport || currentReportData.filteredClaims.length === 0) {
+    if (!hasGeneratedReport || !generatedReportData || generatedReportData.filteredClaims.length === 0) {
       notification.warning({
         message: 'No data to export',
         description: 'Generate a report with at least one matching claim before exporting.',
@@ -252,9 +267,9 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
     }
 
     printWindow.document.write(buildReportPdfHtml({
-      reportData: currentReportData,
-      startDate,
-      endDate,
+      reportData: generatedReportData,
+      startDate: generatedReportData.startDate,
+      endDate: generatedReportData.endDate,
     }));
     printWindow.document.close();
     printWindow.focus();
@@ -278,6 +293,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
     setSelectedStatus('All');
     setAmountRange([0, amountSliderMax]);
     setGeneratedAt(null);
+    setGeneratedReportData(null);
     setHasGeneratedReport(false);
     
     notification.success({
@@ -314,7 +330,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
       try {
         const claims = await getAllClaims();
         setAllClaims(claims);
-        updateAmountBounds(claims.filter(isReportApprovedClaim));
+        updateAmountBounds(claims.filter(Boolean));
       } catch (error) {
         setLoadingError('Unable to refresh claims for reporting.');
         notification.error({
@@ -369,7 +385,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
       );
     }
 
-    if (!hasGeneratedReport) {
+    if (!hasGeneratedReport || !generatedReportData) {
       return (
         <Card style={{ borderRadius: 12, height: '100%' }}>
           <div style={{ 
@@ -412,20 +428,20 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
         style={{ borderRadius: 12 }}
         bodyStyle={{ padding: 24 }}
       >
-        {buildReportHeader(currentReportData)}
+        {buildReportHeader(generatedReportData)}
         <div style={{ marginTop: 24 }}>
-          {buildSummaryCards(currentReportData)}
+          {buildSummaryCards(generatedReportData)}
           <div style={{ marginTop: 24 }}>
-            {buildChartOverview(currentReportData)}
+            {buildChartOverview(generatedReportData)}
           </div>
           <div style={{ marginTop: 24 }}>
-            {buildInsightCards(currentReportData)}
+            {buildInsightCards(generatedReportData)}
           </div>
           <div style={{ marginTop: 24 }}>
-            {buildStatusBreakdown(currentReportData)}
+            {buildStatusBreakdown(generatedReportData)}
           </div>
           <div style={{ marginTop: 24 }}>
-            {buildDetailedTable(currentReportData)}
+            {buildDetailedTable(generatedReportData)}
           </div>
         </div>
       </Card>
@@ -442,7 +458,7 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
         </Text>
         <div>
           <Text type="secondary">
-            Period: {startDate.format('DD MMM YYYY')} - {endDate.format('DD MMM YYYY')}
+            Period: {reportData.startDate.format('DD MMM YYYY')} - {reportData.endDate.format('DD MMM YYYY')}
           </Text>
         </div>
       </Col>
@@ -849,8 +865,8 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
           </Text>
           <div className="portal-dashboard-chip-row">
             <div className="portal-dashboard-chip portal-dashboard-chip-soft">
-              <span className="portal-dashboard-chip-label">Approved Claims</span>
-              <span className="portal-dashboard-chip-value">{approvedReportClaims.length}</span>
+              <span className="portal-dashboard-chip-label">Total Claims</span>
+              <span className="portal-dashboard-chip-value">{reportClaims.length}</span>
             </div>
             <div className="portal-dashboard-chip portal-dashboard-chip-soft">
               <span className="portal-dashboard-chip-label">Generated</span>
@@ -969,10 +985,6 @@ function ReportsScreen({ claims: providedClaims = null, loading = false, onRefre
 
 function isApprovedStatus(status) {
   return String(status || '').trim().toLowerCase() === 'approved';
-}
-
-function isReportApprovedClaim(claim) {
-  return isApprovedStatus(claim?.status) && !isManualReviewClaim(claim);
 }
 
 function isRejectedStatus(status) {

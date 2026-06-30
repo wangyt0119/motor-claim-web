@@ -80,6 +80,8 @@ function normalizeAdminUser(item) {
     userId: item.userId ?? item.UserId ?? item.id ?? item.Id ?? null,
     fullName: item.fullName ?? item.FullName ?? item.name ?? item.Name ?? '',
     email: item.email ?? item.Email ?? '',
+    mobileCountry: item.mobileCountry ?? item.MobileCountry ?? null,
+    mobileNumber: item.mobileNumber ?? item.MobileNumber ?? '',
     role: normalizeRole(item.role ?? item.Role ?? null),
     roleName: item.roleName ?? item.RoleName ?? item.roleText ?? item.RoleText ?? null,
     workshopId: item.workshopId ?? item.WorkshopId ?? workshop?.workshopId ?? workshop?.WorkshopId ?? null,
