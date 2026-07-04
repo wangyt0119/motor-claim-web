@@ -81,6 +81,7 @@ function WorkshopSubmissionsOfficerScreen({
         estimate?.status,
         estimate?.reviewMode,
         estimate?.reviewNote,
+        getWorkshopManualReviewReason(estimate),
       ]
         .filter(Boolean)
         .join(' ')
@@ -117,6 +118,14 @@ function WorkshopSubmissionsOfficerScreen({
           <Text strong>{claim.id}</Text>
           <Text type="secondary">{claim.type || 'Vehicle claim'}</Text>
         </Space>
+      ),
+    },
+    {
+      title: 'Main Reason',
+      key: 'mainReason',
+      width: 240,
+      render: (_, claim) => (
+        <Text strong>{getWorkshopManualReviewReason(claim.workshopRepairEstimate)}</Text>
       ),
     },
     {
@@ -304,7 +313,7 @@ function WorkshopSubmissionsOfficerScreen({
           loading={loading}
           rowKey={(claim) => `${claim.id}-${claim.workshopRepairEstimate?.estimateId || 'estimate'}`}
           pagination={{ pageSize: 8 }}
-          scroll={{ x: 1320 }}
+          scroll={{ x: 1560 }}
           locale={{
             emptyText: (
               <Empty
@@ -388,6 +397,37 @@ function getWorkshopReviewSummary(estimate) {
   }
 
   return formatReviewMode(estimate.reviewMode);
+}
+
+function getWorkshopManualReviewReason(estimate) {
+  if (!estimate) {
+    return 'No estimate submitted';
+  }
+
+  if (estimate.isStpApproved) {
+    return 'Within STP threshold';
+  }
+
+  if (isWorkshopWaitingForUpdate(estimate)) {
+    return 'Waiting for workshop update';
+  }
+
+  const amount = Number(estimate.totalAmount || 0);
+  if (amount > 2000) {
+    return 'Over STP threshold';
+  }
+
+  const normalizedStatus = normalizeValue(estimate.status);
+  if (normalizedStatus === 'pendingmanualreview' || normalizedStatus === 'manualreview') {
+    return 'Manual review required';
+  }
+
+  const normalizedReviewMode = normalizeValue(estimate.reviewMode);
+  if (normalizedReviewMode === 'officerreview') {
+    return 'Officer review required';
+  }
+
+  return formatReviewMode(estimate.reviewMode) || 'Manual review required';
 }
 
 export default WorkshopSubmissionsOfficerScreen;

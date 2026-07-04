@@ -263,7 +263,7 @@ function ManualReviewQueue({ claims = [], onClaimsChanged }) {
             <FlagOutlined style={{ color: '#FF8C00', fontSize: 20, marginRight: 8, marginTop: 2 }} />
             <div>
               <Text strong style={{ fontSize: 14, color: '#8B4513' }}>
-                Flagged: {claim.flagReason}
+                Pending: {claim.flagReason}
               </Text>
               <div>
                 <Text style={{ fontSize: 12, color: '#8B4513' }}>

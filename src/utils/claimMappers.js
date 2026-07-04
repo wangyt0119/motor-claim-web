@@ -171,6 +171,14 @@ function normalizeValidationResult(value) {
 }
 
 function resolveStpApproved({ directValue, validationApproved, claimStatus, stpStatus }) {
+  if (stpStatus === 'AutoApproved') {
+    return true;
+  }
+
+  if (stpStatus === 'ManualReview') {
+    return false;
+  }
+
   const direct = normalizeBoolean(directValue);
   if (direct !== null) {
     return direct;
@@ -181,19 +189,7 @@ function resolveStpApproved({ directValue, validationApproved, claimStatus, stpS
     return validation;
   }
 
-  if (stpStatus === 'AutoApproved') {
-    return true;
-  }
-
-  if (stpStatus === 'ManualReview') {
-    return false;
-  }
-
   const normalizedClaimStatus = String(claimStatus || '').trim().toLowerCase();
-  if (normalizedClaimStatus === 'approved') {
-    return true;
-  }
-
   if (normalizedClaimStatus.includes('manual review')) {
     return false;
   }

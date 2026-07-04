@@ -397,7 +397,7 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
                 <Descriptions.Item label="Next action">{getNextAction(claim)}</Descriptions.Item>
               </Descriptions>
 
-              {claim.requestedItems?.length ? (
+              {hasPendingCustomerRequest(claim) ? (
                 <Alert
                   type="warning"
                   showIcon
@@ -440,7 +440,7 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
                 <Button icon={<EyeOutlined />} onClick={() => setSelectedClaim(claim)}>
                   View Details
                 </Button>
-                {claim.status === 'Pending Customer Action' ? (
+                {hasPendingCustomerRequest(claim) ? (
                   <Button
                     type="primary"
                     icon={<UploadOutlined />}
@@ -487,7 +487,7 @@ function CustomerClaimTracker({ claims = [], coverages = [], onClaimsChanged }) 
         confirmLoading={submittingResponse}
       >
         <Space direction="vertical" size={12} style={{ width: '100%' }}>
-          {selectedClaim?.requestedItems?.length ? (
+          {hasPendingCustomerRequest(selectedClaim) ? (
             <Alert
               type="warning"
               showIcon
@@ -1341,6 +1341,13 @@ function getNextAction(claim) {
     default:
       return 'Your claim is still under review.';
   }
+}
+
+function hasPendingCustomerRequest(claim) {
+  return (
+    String(claim?.status || '').toLowerCase() === 'pending customer action' &&
+    Boolean(claim?.requestedItems?.length)
+  );
 }
 
 function canBookWorkshop(claim) {

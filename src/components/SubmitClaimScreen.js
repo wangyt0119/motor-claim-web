@@ -31,6 +31,19 @@ const MOTOR_CLAIM_TYPES = {
   Windscreen: 3,
 };
 
+const MAX_PARALLEL_CLOUDINARY_UPLOADS = 4;
+
+const getCoverageEffectiveTime = (coverage) => {
+  const effectiveDate = moment(coverage?.effectiveDate);
+  return effectiveDate.isValid() ? effectiveDate.valueOf() : 0;
+};
+
+const sortCoveragesByLatestEffectiveDate = (coverages) => (
+  [...coverages].sort((firstCoverage, secondCoverage) => (
+    getCoverageEffectiveTime(secondCoverage) - getCoverageEffectiveTime(firstCoverage)
+  ))
+);
+
 const motorClaimTypeOptions = [
   {
     value: MOTOR_CLAIM_TYPES.VehicleDamages,
@@ -68,6 +81,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
   const [existingClaims, setExistingClaims] = useState([]);
   const [coverageLoading, setCoverageLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [submitStatus, setSubmitStatus] = useState('');
   const [submitError, setSubmitError] = useState('');
   const [successModalOpen, setSuccessModalOpen] = useState(false);
   const [smartApplySuccess, setSmartApplySuccess] = useState(null);
@@ -302,7 +316,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
 
       try {
         const [coverages, claims] = await Promise.all([getMyCoverages(), getMyClaims()]);
-        setCoverageOptions(coverages);
+        setCoverageOptions(sortCoveragesByLatestEffectiveDate(coverages));
         setExistingClaims(claims);
       } catch (error) {
         message.error(
@@ -357,6 +371,10 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
   const getMissingRequiredDocuments = () => {
     return getRequiredDocuments().filter((doc) => !(documentFiles[doc.key] && documentFiles[doc.key].length > 0));
   };
+
+  const getDocumentLabel = (documentKey) => (
+    getRequiredDocuments().find((doc) => doc.key === documentKey)?.label || documentKey
+  );
 
   const handleDocumentUpload = (documentKey) => ({ fileList }) => {
     const normalizedList = fileList.slice(-1);
@@ -596,14 +614,6 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
     return segments.length > 1 ? segments[segments.length - 1].toLowerCase() : '';
   };
 
-  const getSmartConfidenceColor = (confidence) => {
-    if (confidence === 'High') return 'green';
-    if (confidence === 'Medium') return 'blue';
-    if (confidence === 'Low') return 'gold';
-    if (confidence === 'Manual') return 'purple';
-    return 'default';
-  };
-
   const openUploadedFilePreview = (uploadFile) => {
     const rawFile = uploadFile?.originFileObj || uploadFile;
 
@@ -641,6 +651,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
   const getDocumentPayload = async () => {
     const uploadedEntries = Object.entries(documentFiles);
     const payload = {};
+    const uploadTasks = [];
 
     for (const [documentKey, fileList] of uploadedEntries) {
       const file = fileList?.[0];
@@ -651,7 +662,29 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
       }
 
       const rawFile = file.originFileObj ?? file;
-      payload[documentKey] = await uploadFileToCloudinary(rawFile);
+      uploadTasks.push({
+        documentKey,
+        label: getDocumentLabel(documentKey),
+        upload: () => uploadFileToCloudinary(rawFile),
+      });
+    }
+
+    for (let index = 0; index < uploadTasks.length; index += MAX_PARALLEL_CLOUDINARY_UPLOADS) {
+      const batch = uploadTasks.slice(index, index + MAX_PARALLEL_CLOUDINARY_UPLOADS);
+      const batchResults = await Promise.all(
+        batch.map(async (task) => {
+          try {
+            const url = await task.upload();
+            return { documentKey: task.documentKey, url };
+          } catch (error) {
+            throw new Error(`Unable to upload ${task.label}. ${error?.message || 'Please try again.'}`);
+          }
+        })
+      );
+
+      batchResults.forEach(({ documentKey, url }) => {
+        payload[documentKey] = url;
+      });
     }
 
     return payload;
@@ -776,6 +809,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
   const handleSubmit = async () => {
     try {
       setSubmitError('');
+      setSubmitStatus('');
 
       if (!termsAgreed) {
         message.warning('Please tick the confirmation checkbox before submitting your claim.');
@@ -789,6 +823,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
 
       await form.validateFields();
       setSubmitting(true);
+      setSubmitStatus('Checking your latest claim status...');
 
       const latestClaims = await getMyClaims();
       setExistingClaims(latestClaims);
@@ -800,6 +835,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
         );
       }
 
+      setSubmitStatus('Uploading documents securely...');
       const documentPayload = await getDocumentPayload();
       const incidentDateIso = incidentDateString ? `${incidentDateString}T00:00:00` : null;
 
@@ -842,6 +878,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
 
       console.log('Create claim payload', claimPayload);
 
+      setSubmitStatus('Sending claim for OCR and validation...');
       const createdClaim = await createClaim(claimPayload);
       console.log('Create claim response', createdClaim);
       setExistingClaims((claims) => [createdClaim, ...claims]);
@@ -865,6 +902,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
       setSelectedCoverage(null);
       setIncidentDateString('');
       setIncidentDescription('');
+      setSubmitStatus('');
     } catch (error) {
       const errorMessage =
         error?.response?.data?.message ||
@@ -878,6 +916,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
       message.error(errorMessage);
     } finally {
       setSubmitting(false);
+      setSubmitStatus('');
     }
   };
   
@@ -1249,12 +1288,13 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
         title: 'Document Required',
         dataIndex: 'documentLabel',
         key: 'documentLabel',
-        width: 250,
+        width: '30%',
         render: (value) => <Text strong>{value}</Text>,
       },
       {
         title: 'Suggested File',
         key: 'file',
+        width: '45%',
         render: (_, suggestion) => suggestion.file ? (
           <Text style={{ wordBreak: 'break-word' }}>{suggestion.file.name}</Text>
         ) : (
@@ -1262,22 +1302,10 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
         ),
       },
       {
-        title: 'Confidence / Reason',
-        key: 'confidence',
-        width: 260,
-        render: (_, suggestion) => (
-          <div>
-            <Tag color={getSmartConfidenceColor(suggestion.confidence)}>{suggestion.confidence}</Tag>
-            <Text type="secondary" style={{ display: 'block', fontSize: 12, marginTop: 4 }}>
-              {suggestion.reason}
-            </Text>
-          </div>
-        ),
-      },
-      {
         title: 'Use',
         key: 'use',
-        width: 90,
+        width: '8%',
+        align: 'center',
         render: (_, suggestion) => (
           <Checkbox
             disabled={!suggestion.file || suggestion.rejected}
@@ -1301,7 +1329,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
       {
         title: 'Action',
         key: 'action',
-        width: 190,
+        width: '17%',
         render: (_, suggestion) => (
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {suggestion.file && !suggestion.rejected ? (
@@ -1432,7 +1460,7 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
                   columns={smartSuggestionColumns}
                   rowKey="documentKey"
                   pagination={false}
-                  scroll={{ x: 980 }}
+                  tableLayout="fixed"
                 />
                 <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
                   <Button onClick={clearSmartSuggestions}>Clear Suggestions</Button>
@@ -2019,6 +2047,16 @@ const formatMoney = (amount) => `RM ${Number(amount || 0).toLocaleString(undefin
             showIcon
             message="Unable to submit claim"
             description={submitError}
+            style={{ marginBottom: 16 }}
+          />
+        ) : null}
+
+        {submitting && submitStatus ? (
+          <Alert
+            type="info"
+            showIcon
+            message={submitStatus}
+            description="Document uploads now run in parallel; OCR and claim validation continue after the files are uploaded."
             style={{ marginBottom: 16 }}
           />
         ) : null}

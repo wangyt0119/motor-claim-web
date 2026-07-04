@@ -16,6 +16,7 @@ import {
 import {
   EyeOutlined,
   FileSearchOutlined,
+  FlagOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   SearchOutlined,
@@ -38,11 +39,12 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
 
     return claims.filter((claim) => {
       const matchesStatus = matchesClaimWorkflowFilter(claim, statusFilter);
+      const stpDisplay = getStpDisplay(claim);
       const matchesStp =
         stpFilter === 'All' ||
-        (stpFilter === 'Auto Approved' && claim.isStpApproved) ||
-        (stpFilter === 'Manual Review' && !claim.isStpApproved && claim.stpStatus !== 'Pending') ||
-        (stpFilter === 'Pending' && String(claim.stpStatus || '').toLowerCase() === 'pending');
+        (stpFilter === 'Auto Approved' && stpDisplay.value === 'passed') ||
+        (stpFilter === 'Manual Review' && stpDisplay.value === 'manual-review') ||
+        (stpFilter === 'Pending' && stpDisplay.value === 'pending');
 
       const matchesDate =
         !dateRange?.length ||
@@ -63,6 +65,8 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
         claim.userId,
         claim.status,
         claim.stpStatus,
+        stpDisplay.label,
+        getClaimFlagDisplay(claim).reason,
         claim.incidentDescription,
       ]
         .filter(Boolean)
@@ -84,8 +88,8 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
   );
 
   const totalClaims = claims.length;
-  const stpPassedCount = claims.filter((claim) => claim.isStpApproved).length;
-  const manualReviewCount = claims.filter((claim) => !claim.isStpApproved).length;
+  const stpPassedCount = claims.filter((claim) => getStpDisplay(claim).value === 'passed').length;
+  const manualReviewCount = claims.filter((claim) => getStpDisplay(claim).value === 'manual-review').length;
 
   const columns = [
     {
@@ -139,13 +143,36 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
       title: 'STP',
       key: 'stp',
       width: 220,
-      render: (_, claim) => (
-        <Space direction="vertical" size={4}>
-          <Tag color={claim.isStpApproved ? 'success' : 'warning'}>
-            {claim.isStpApproved ? 'Passed' : 'Manual Review'}
-          </Tag>
-        </Space>
-      ),
+      render: (_, claim) => {
+        const stpDisplay = getStpDisplay(claim);
+
+        return (
+          <Space direction="vertical" size={4}>
+            <Tag color={stpDisplay.color}>{stpDisplay.label}</Tag>
+          </Space>
+        );
+      },
+    },
+    {
+      title: 'Flag',
+      key: 'flag',
+      width: 220,
+      render: (_, claim) => {
+        const flagDisplay = getClaimFlagDisplay(claim);
+
+        return (
+          <Space direction="vertical" size={4}>
+            <Tag icon={flagDisplay.flagged ? <FlagOutlined /> : null} color={flagDisplay.color}>
+              {flagDisplay.label}
+            </Tag>
+            {flagDisplay.flagged && flagDisplay.reason ? (
+              <Text type="secondary" style={{ fontSize: 12 }}>
+                {flagDisplay.reason}
+              </Text>
+            ) : null}
+          </Space>
+        );
+      },
     },
     {
       title: 'Documents',
@@ -153,23 +180,6 @@ function AllClaimsOfficerScreen({ claims = [], loading = false, onRefresh, onCla
       width: 120,
       render: (_, claim) => (
         <Tag color="processing">{claim.documents?.length || 0} uploaded</Tag>
-      ),
-    },
-    {
-      title: 'Email',
-      key: 'email',
-      width: 200,
-      render: (_, claim) => (
-        <Space direction="vertical" size={4}>
-          <Tag color={getEmailStatusColor(claim.emailNotificationSent)}>
-            {formatEmailStatus(claim.emailNotificationSent)}
-          </Tag>
-          {claim.emailNotificationMessage ? (
-            <Text type="secondary" style={{ fontSize: 12 }}>
-              {claim.emailNotificationMessage}
-            </Text>
-          ) : null}
-        </Space>
       ),
     },
     {
@@ -349,28 +359,58 @@ function getStatusColor(status) {
   }
 }
 
-function formatEmailStatus(value) {
-  if (value === true) {
-    return 'Email sent';
+function getStpDisplay(claim) {
+  const normalizedStpStatus = String(claim?.stpStatus || '').trim().toLowerCase().replace(/\s+/g, '');
+
+  if (normalizedStpStatus === 'autoapproved') {
+    return { value: 'passed', label: 'Passed', color: 'success' };
   }
 
-  if (value === false) {
-    return 'Email failed';
+  if (normalizedStpStatus === 'manualreview') {
+    return { value: 'manual-review', label: 'Manual Review', color: 'warning' };
   }
 
-  return 'No status';
+  if (normalizedStpStatus === 'pending') {
+    return { value: 'pending', label: 'Pending', color: 'processing' };
+  }
+
+  if (claim?.isStpApproved) {
+    return { value: 'passed', label: 'Passed', color: 'success' };
+  }
+
+  return { value: 'manual-review', label: 'Manual Review', color: 'warning' };
 }
 
-function getEmailStatusColor(value) {
-  if (value === true) {
-    return 'success';
+function getClaimFlagDisplay(claim) {
+  const validationReasons = claim?.validationResult?.reasons || [];
+  const flagReason = claim?.manualReviewFlagReason || validationReasons[0] || '';
+  const normalizedStatus = String(claim?.status || '').trim().toLowerCase();
+  const flagged = Boolean(claim?.isFlaggedForManualReview || flagReason);
+
+  if (flagged) {
+    return {
+      flagged: true,
+      label: 'Flagged',
+      reason: flagReason || 'Manual review required',
+      color: 'error',
+    };
   }
 
-  if (value === false) {
-    return 'error';
+  if (normalizedStatus.includes('manual review') || getStpDisplay(claim).value === 'manual-review') {
+    return {
+      flagged: false,
+      label: 'Review',
+      reason: '',
+      color: 'warning',
+    };
   }
 
-  return 'default';
+  return {
+    flagged: false,
+    label: 'Clear',
+    reason: '',
+    color: 'success',
+  };
 }
 
 export default AllClaimsOfficerScreen;

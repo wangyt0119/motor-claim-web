@@ -131,6 +131,7 @@ function WorkshopSubmissionReviewDrawer({ claim, open, onClose, onWorkflowUpdate
               <Descriptions.Item label="Vehicle No">{claim.coverage?.vehicleNo || 'Not available'}</Descriptions.Item>
               <Descriptions.Item label="Submitted At">{formatDateTime(estimate.submittedAt)}</Descriptions.Item>
               <Descriptions.Item label="Reviewed At">{formatDateTime(estimate.reviewedAt)}</Descriptions.Item>
+              <Descriptions.Item label="Main Reason">{getWorkshopManualReviewReason(estimate)}</Descriptions.Item>
               <Descriptions.Item label="Remarks">{estimate.remarks || 'No remarks'}</Descriptions.Item>
               <Descriptions.Item label="Review Note">{estimate.reviewNote || 'No review note yet'}</Descriptions.Item>
             </Descriptions>
@@ -143,7 +144,7 @@ function WorkshopSubmissionReviewDrawer({ claim, open, onClose, onWorkflowUpdate
             description={
               estimate.isStpApproved
                 ? 'This quotation amount is within the STP threshold, so the backend marked it as STP approved.'
-                : 'This quotation needs officer review before it can be finalized.'
+                : `Main reason: ${getWorkshopManualReviewReason(estimate)}. This quotation needs officer review before it can be finalized.`
             }
           />
 
@@ -305,6 +306,43 @@ function formatDate(value) {
 
 function formatDateTime(value) {
   return value ? moment(value).format('DD MMM YYYY, hh:mm A') : 'Not available';
+}
+
+function getWorkshopManualReviewReason(estimate) {
+  if (!estimate) {
+    return 'No estimate submitted';
+  }
+
+  if (estimate.isStpApproved) {
+    return 'Within STP threshold';
+  }
+
+  const normalizedStatus = normalizeValue(estimate.status);
+  if (normalizedStatus === 'revisionrequested') {
+    return 'Waiting for workshop update';
+  }
+
+  if (Number(estimate.totalAmount || 0) > 2000) {
+    return 'Over STP threshold';
+  }
+
+  if (normalizedStatus === 'pendingmanualreview' || normalizedStatus === 'manualreview') {
+    return 'Manual review required';
+  }
+
+  const normalizedReviewMode = normalizeValue(estimate.reviewMode);
+  if (normalizedReviewMode === 'officerreview') {
+    return 'Officer review required';
+  }
+
+  return formatReviewMode(estimate.reviewMode) || 'Manual review required';
+}
+
+function normalizeValue(value) {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '');
 }
 
 function openDocument(url) {

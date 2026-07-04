@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Layout, Menu, Avatar, Typography, Divider, Button, message } from 'antd';
 import { 
   AppstoreOutlined,
@@ -35,16 +35,7 @@ function MainScreen({ onSignOut, currentUser }) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  useEffect(() => {
-    const routeKey = location.pathname.split('/')[2] || 'dashboard';
-    setSelectedKey(routeKey);
-
-    if (routeKey === 'track') {
-      refreshClaims();
-    }
-  }, [location.pathname]);
-
-  const refreshClaims = async () => {
+  const refreshClaims = useCallback(async ({ silent = false } = {}) => {
     try {
       const [claimList, coverageList] = await Promise.all([getMyClaims(), getMyCoverages()]);
       const coverageById = new Map(
@@ -65,17 +56,53 @@ function MainScreen({ onSignOut, currentUser }) {
         })
       );
     } catch (error) {
-      message.error(
-        error?.response?.data?.message ||
-          error?.response?.data?.title ||
-          'Unable to load your claims from the backend.'
-      );
+      if (!silent) {
+        message.error(
+          error?.response?.data?.message ||
+            error?.response?.data?.title ||
+            'Unable to load your claims from the backend.'
+        );
+      }
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const routeKey = location.pathname.split('/')[2] || 'dashboard';
+    setSelectedKey(routeKey);
+
+    if (routeKey === 'track') {
+      refreshClaims();
+    }
+  }, [location.pathname, refreshClaims]);
+
+  useEffect(() => {
+    const routeKey = location.pathname.split('/')[2] || 'dashboard';
+
+    if (routeKey !== 'track') {
+      return undefined;
+    }
+
+    let isRefreshing = false;
+    const intervalId = window.setInterval(async () => {
+      if (isRefreshing) {
+        return;
+      }
+
+      isRefreshing = true;
+
+      try {
+        await refreshClaims({ silent: true });
+      } finally {
+        isRefreshing = false;
+      }
+    }, 8000);
+
+    return () => window.clearInterval(intervalId);
+  }, [location.pathname, refreshClaims]);
 
   useEffect(() => {
     refreshClaims();
-  }, []);
+  }, [refreshClaims]);
 
   const handleMenuClick = (key) => {
     setSelectedKey(key);
@@ -267,5 +294,3 @@ function MainScreen({ onSignOut, currentUser }) {
 }
 
 export default MainScreen;
-
-
